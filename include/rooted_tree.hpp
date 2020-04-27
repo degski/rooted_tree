@@ -33,8 +33,6 @@
 #include <vector>
 
 #include <cereal/cereal.hpp>
-#include <cereal/archives/binary.hpp>
-#include <cereal/types/vector.hpp>
 
 namespace sax {
 
