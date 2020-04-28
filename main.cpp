@@ -30,21 +30,29 @@
 
 #include <sax/iostream.hpp>
 
-struct foo : sax::rooted_tree_node {
+struct foo : sax::crt_meta_data {
 
     short value = 0;
 
-    foo ( ) noexcept : sax::rooted_tree_node{ } {}
-    explicit foo ( short && i_ ) noexcept : sax::rooted_tree_node{ }, value{ std::move ( i_ ) } {}
+    foo ( ) noexcept : sax::crt_meta_data{ } {
+        ++up.id; // set flag to constructed
+    }
+    foo ( foo const & foo_ ) noexcept :
+        sax::crt_meta_data{ sax::NodeIDAtom{ }, foo_.prev, foo_.tail, foo_.size }, value{ foo_.value } {
+        ++up.id; // set flag to constructed
+    }
+    explicit foo ( short && i_ ) noexcept : sax::crt_meta_data{ }, value{ std::move ( i_ ) } {
+        ++up.id; // set flag to constructed
+    }
 };
 
 int main ( ) {
 
-    sax::rooted_tree<foo> tree;
+    sax::concurrent_rooted_tree<foo> tree;
 
-    tree.add_root ( short{ 1 } );
+    tree.emplace_root ( short{ 1 } );
 
-    std::cout << tree.size ( ) << nl;
+    std::cout << tree.nodes.size ( ) << nl;
 
     return EXIT_SUCCESS;
 }

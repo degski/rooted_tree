@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include <atomic>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -42,26 +43,27 @@
 
 namespace sax {
 
-struct NodeID {
+template<typename IDType>
+struct BaseNodeID {
 
-    int id;
+    IDType id;
 
-    static constexpr NodeID invalid ( ) noexcept { return NodeID{ nodeid_invalid_value }; }
+    static constexpr BaseNodeID invalid ( ) noexcept { return BaseNodeID{ nodeid_invalid_value }; }
 
-    constexpr explicit NodeID ( ) noexcept : id{ nodeid_invalid_value } {}
-    constexpr explicit NodeID ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
-    constexpr explicit NodeID ( int const & v_ ) noexcept : id{ v_ } {}
+    constexpr explicit BaseNodeID ( ) noexcept : id{ nodeid_invalid_value } {}
+    constexpr explicit BaseNodeID ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
+    constexpr explicit BaseNodeID ( int const & v_ ) noexcept : id{ v_ } {}
 
     // [[nodiscard]] constexpr int operator( ) ( ) const noexcept { return id; }
 
-    [[nodiscard]] bool operator== ( NodeID const rhs_ ) const noexcept { return id == rhs_.id; }
-    [[nodiscard]] bool operator!= ( NodeID const rhs_ ) const noexcept { return id != rhs_.id; }
+    [[nodiscard]] bool operator== ( BaseNodeID const rhs_ ) const noexcept { return id == rhs_.id; }
+    [[nodiscard]] bool operator!= ( BaseNodeID const rhs_ ) const noexcept { return id != rhs_.id; }
 
     [[nodiscard]] bool is_valid ( ) const noexcept { return id; }
     [[nodiscard]] bool is_invalid ( ) const noexcept { return not is_valid ( ); }
 
     template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, NodeID const id_ ) noexcept {
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, BaseNodeID const id_ ) noexcept {
         if ( nodeid_invalid_value == id_.id ) {
             if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::id ) {
                 out_ << L'*';
@@ -87,13 +89,16 @@ struct NodeID {
     static constexpr int nodeid_invalid_value = 0;
 };
 
-struct rooted_tree_node { // 16
+using NodeID     = BaseNodeID<int>;
+using NodeIDAtom = BaseNodeID<std::atomic<int>>;
+
+struct rt_meta_data { // 16
 
     NodeID up = NodeID{ }, prev = NodeID{ }, tail = NodeID{ }; // 12
     int size = 0;                                              // 4
 
     template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_node const node_ ) noexcept {
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rt_meta_data const node_ ) noexcept {
         if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::id ) {
             out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.size << L'>';
         }
@@ -107,17 +112,17 @@ struct rooted_tree_node { // 16
 template<typename Node, typename Container = std::vector<Node>, typename IDContainer = std::vector<NodeID>>
 struct rooted_tree {
 
-    using Tree = Container;
+    using data_vector = Container;
 
     using size_type       = int;
-    using difference_type = typename Tree::difference_type;
-    using value_type      = typename Tree::value_type;
-    using reference       = typename Tree::reference;
-    using pointer         = typename Tree::pointer;
-    using iterator        = typename Tree::iterator;
-    using const_reference = typename Tree::const_reference;
-    using const_pointer   = typename Tree::const_pointer;
-    using const_iterator  = typename Tree::const_iterator;
+    using difference_type = typename data_vector::difference_type;
+    using value_type      = typename data_vector::value_type;
+    using reference       = typename data_vector::reference;
+    using pointer         = typename data_vector::pointer;
+    using iterator        = typename data_vector::iterator;
+    using const_reference = typename data_vector::const_reference;
+    using const_pointer   = typename data_vector::const_pointer;
+    using const_iterator  = typename data_vector::const_iterator;
 
     rooted_tree ( ) {
         nodes.reserve ( 128 );
@@ -141,46 +146,32 @@ struct rooted_tree {
     [[nodiscard]] iterator end ( ) noexcept { return nodes.end ( ); }
 
     [[nodiscard]] Node & operator[] ( NodeID node_ ) noexcept {
-        return nodes[ static_cast<typename Tree::size_type> ( node_.id ) ];
+        return nodes[ static_cast<typename data_vector::size_type> ( node_.id ) ];
     }
     [[nodiscard]] Node const & operator[] ( NodeID node_ ) const noexcept {
-        return nodes[ static_cast<typename Tree::size_type> ( node_.id ) ];
+        return nodes[ static_cast<typename data_vector::size_type> ( node_.id ) ];
     }
 
     [[nodiscard]] Node & operator[] ( size_type node_ ) noexcept { return nodes[ node_ ]; }
     [[nodiscard]] Node const & operator[] ( size_type node_ ) const noexcept { return nodes[ node_ ]; }
 
-    void reserve ( size_type c_ ) { nodes.reserve ( static_cast<typename Tree::size_type> ( c_ ) ); }
-
-    [[nodiscard]] size_type size ( ) const noexcept { return static_cast<size_type> ( nodes.size ( ) ) - 1; }
-    [[nodiscard]] size_type capacity ( ) const noexcept { return static_cast<size_type> ( nodes.capacity ( ) ) - 1; }
+    void reserve ( size_type c_ ) { nodes.reserve ( static_cast<typename data_vector::size_type> ( c_ ) ); }
 
     template<typename... Args>
-    [[maybe_unused]] NodeID add_node ( NodeID source_, Args &&... args_ ) noexcept {
+    [[maybe_unused]] NodeID emplace_node ( NodeID source_, Args &&... args_ ) noexcept {
         NodeID id{ static_cast<size_type> ( nodes.size ( ) ) };
         Node & t = nodes.emplace_back ( std::forward<Args> ( args_ )... );
         t.up     = source_;
-        Node & s = nodes[ static_cast<typename Tree::size_type> ( source_.id ) ];
+        Node & s = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
         t.prev   = s.tail;
         s.tail   = id;
         ++s.size;
         return id;
     }
     template<typename... Args>
-    [[maybe_unused]] NodeID add_root ( Args &&... args_ ) noexcept {
-        assert ( typename Tree::size_type{ 1 } == nodes.size ( ) );
-        return add_node ( NodeID{ 0 }, std::forward<Args> ( args_ )... );
-    }
-
-    [[nodiscard]] bool is_leaf ( NodeID node_ ) const noexcept {
-        return not nodes[ static_cast<typename Tree::size_type> ( node_.id ) ].size;
-    }
-    [[nodiscard]] bool is_internal ( NodeID node_ ) const noexcept {
-        return nodes[ static_cast<typename Tree::size_type> ( node_.id ) ].size;
-    }
-
-    [[nodiscard]] size_type arity ( NodeID node_ ) const noexcept {
-        return nodes[ static_cast<typename Tree::size_type> ( node_.id ) ].size;
+    [[maybe_unused]] NodeID emplace_root ( Args &&... args_ ) noexcept {
+        assert ( typename data_vector::size_type{ 1 } == nodes.size ( ) );
+        return emplace_node ( NodeID{ 0 }, std::forward<Args> ( args_ )... );
     }
 
     // Make root_ the new root of the tree and discard the rest of the tree.
@@ -211,10 +202,145 @@ struct rooted_tree {
         std::swap ( nodes, sub_tree.nodes );
     }
 
-    private:
-    Tree nodes;
+    data_vector nodes;
 
-    public:
+    static constexpr NodeID root_node = NodeID{ 1 };
+};
+
+#include <sax/srwlock.hpp>
+
+struct crt_meta_data { // 24
+
+    NodeIDAtom up = NodeIDAtom{ };             // 4 - serves as flag for construction (true means constructed)
+    NodeID prev = NodeID{ }, tail = NodeID{ }; // 8
+    int size = 0;                              // 4
+    sax::SRWLock mutex;                        // 8
+
+    void done ( ) noexcept { ++up.id; }
+
+    template<typename Stream>
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, crt_meta_data const node_ ) noexcept {
+        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::id ) {
+            out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.size << L'>';
+        }
+        else {
+            out_ << '<' << node_.up << ' ' << node_.prev << ' ' << node_.tail << ' ' << node_.size << '>';
+        }
+        return out_;
+    }
+};
+
+template<typename Node, typename IDContainer = std::vector<NodeID>>
+struct concurrent_rooted_tree {
+
+    using data_vector = tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>;
+
+    using size_type       = int;
+    using difference_type = typename data_vector::difference_type;
+    using value_type      = typename data_vector::value_type;
+    using reference       = typename data_vector::reference;
+    using pointer         = typename data_vector::pointer;
+    using iterator        = typename data_vector::iterator;
+    using const_reference = typename data_vector::const_reference;
+    using const_pointer   = typename data_vector::const_pointer;
+    using const_iterator  = typename data_vector::const_iterator;
+
+    concurrent_rooted_tree ( ) {
+        nodes.reserve ( 128 );
+        nodes.grow_by ( 1 );
+        wait_construction ( NodeID{ 0 } );
+        nodes[ 0 ].up.id = 0;
+    }
+
+    template<typename... Args>
+    concurrent_rooted_tree ( Args &&... args_ ) : concurrent_rooted_tree ( ) {
+        push_node ( NodeID{ 0 }, Node{ std::forward<Args> ( args_ )... } );
+    }
+
+    [[nodiscard]] const_pointer data ( ) const noexcept { return nodes.data ( ); }
+    [[nodiscard]] pointer data ( ) noexcept { return nodes.data ( ); }
+
+    [[nodiscard]] const_iterator begin ( ) const noexcept { return nodes.begin ( ); }
+    [[nodiscard]] const_iterator cbegin ( ) const noexcept { return nodes.cbegin ( ); }
+    [[nodiscard]] iterator begin ( ) noexcept { return nodes.begin ( ); }
+
+    [[nodiscard]] const_iterator end ( ) const noexcept { return nodes.end ( ); }
+    [[nodiscard]] const_iterator cend ( ) const noexcept { return nodes.cend ( ); }
+    [[nodiscard]] iterator end ( ) noexcept { return nodes.end ( ); }
+
+    [[nodiscard]] Node & operator[] ( NodeID node_ ) noexcept {
+        return nodes[ static_cast<typename data_vector::size_type> ( node_.id ) ];
+    }
+    [[nodiscard]] Node const & operator[] ( NodeID node_ ) const noexcept {
+        return nodes[ static_cast<typename data_vector::size_type> ( node_.id ) ];
+    }
+
+    [[nodiscard]] Node & operator[] ( size_type node_ ) noexcept { return nodes[ node_ ]; }
+    [[nodiscard]] Node const & operator[] ( size_type node_ ) const noexcept { return nodes[ node_ ]; }
+
+    void reserve ( size_type c_ ) { nodes.reserve ( static_cast<typename data_vector::size_type> ( c_ ) ); }
+
+    [[maybe_unused]] NodeID push_node ( NodeID source_, Node const & node_ ) noexcept {
+        iterator t_it = nodes.push_back ( node_ );
+        NodeID t_id{ static_cast<size_type> ( std::distance ( begin ( ), t_it ) ) };
+        wait_construction ( t_id );
+        t_it->up.id = source_.id;
+        Node & s    = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
+        std::lock_guard<sax::SRWLock> lock ( s.mutex );
+        t_it->prev = s.tail;
+        s.tail     = t_id;
+        ++s.size;
+        return t_id;
+    }
+
+    template<typename... Args>
+    [[maybe_unused]] NodeID emplace_node ( NodeID source_, Args &&... args_ ) noexcept {
+        return push_node ( source_, Node{ std::forward<Args> ( args_ )... } );
+    }
+
+    template<typename... Args>
+    [[maybe_unused]] NodeID emplace_root ( Args &&... args_ ) noexcept {
+        assert ( typename data_vector::size_type{ 1 } == nodes.size ( ) );
+        return emplace_node ( NodeID{ 0 }, std::forward<Args> ( args_ )... );
+    }
+
+    // Make root_ the new root of the tree and discard the rest of the tree.
+    void root ( NodeID root_ ) {
+        assert ( NodeID::invalid ( ) != root_ );
+        rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
+        IDContainer visited ( nodes.size ( ) );
+        visited[ root_.id ] = sub_tree.root_node;
+        IDContainer stack;
+        stack.reserve ( 64u );
+        stack.push_back ( root_ );
+        while ( stack.size ( ) ) {
+            NodeID parent = stack.back ( );
+            stack.pop_back ( );
+            for ( NodeID child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                if ( NodeID::invalid ( ) == visited[ child.id ] ) {
+                    visited[ child.id ] = sub_tree.add_node ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
+                    stack.push_back ( child );
+                }
+        }
+        std::swap ( nodes, sub_tree.nodes );
+    }
+
+    void flatten ( ) {
+        rooted_tree sub_tree{ std::move ( nodes[ root_node.id ].data ) };
+        for ( NodeID child = nodes[ root_node.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+            sub_tree.add_node ( root_node, std::move ( nodes[ child.id ] ) );
+        std::swap ( nodes, sub_tree.nodes );
+    }
+
+    void wait_construction ( NodeID node_ ) {
+        while ( node_.id >= static_cast<size_type> ( nodes.size ( ) ) ) // Wait allocation.
+            std::this_thread::yield ( );
+        while ( not nodes[ static_cast<typename data_vector::size_type> ( node_.id ) ].up.id ) // Wait construction.
+            std::this_thread::yield ( );
+    }
+
+    data_vector nodes;
+
     static constexpr NodeID root_node = NodeID{ 1 };
 };
 
