@@ -111,19 +111,10 @@ struct foo : sax::crt_meta_data {
 
     int value = 0;
 
-    foo ( ) noexcept : sax::crt_meta_data{ } {
-        ++up.id; // set flag to constructed
-    }
-    foo ( foo const & foo_ ) noexcept :
-        sax::crt_meta_data{ sax::NodeIDAtom{ }, foo_.prev, foo_.tail, foo_.size }, value{ foo_.value } {
-        ++up.id; // set flag to constructed
-    }
-    explicit foo ( int const & i_ ) noexcept : sax::crt_meta_data{ }, value{ i_ } {
-        ++up.id; // set flag to constructed
-    }
-    explicit foo ( int && i_ ) noexcept : sax::crt_meta_data{ }, value{ std::move ( i_ ) } {
-        ++up.id; // set flag to constructed
-    }
+    foo ( ) noexcept : sax::crt_meta_data{ } {}
+    foo ( foo const & foo_ ) noexcept : sax::crt_meta_data{ foo_.up, foo_.prev, foo_.tail, foo_.size }, value{ foo_.value } {}
+    explicit foo ( int const & i_ ) noexcept : sax::crt_meta_data{ }, value{ i_ } {}
+    explicit foo ( int && i_ ) noexcept : sax::crt_meta_data{ }, value{ std::move ( i_ ) } {}
 };
 
 struct bar : sax::rt_meta_data {
@@ -166,7 +157,6 @@ int main ( ) {
 
         for ( int n = 0; n < 4; ++n )
             threads.emplace_back ( add_nodes_con, std::ref ( tree ), 1'000'000 );
-
         for ( auto & t : threads )
             t.join ( );
 

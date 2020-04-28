@@ -29,7 +29,7 @@
 #include <cstdlib>
 
 #include <atomic>
-#include <iostream>
+#include <sax/iostream.hpp>
 #include <utility>
 #include <vector>
 
@@ -43,27 +43,26 @@
 
 namespace sax {
 
-template<typename IDType>
-struct BaseNodeID {
+struct NodeID {
 
-    IDType id;
+    int id;
 
-    static constexpr BaseNodeID invalid ( ) noexcept { return BaseNodeID{ nodeid_invalid_value }; }
+    static constexpr NodeID invalid ( ) noexcept { return NodeID{ nodeid_invalid_value }; }
 
-    constexpr explicit BaseNodeID ( ) noexcept : id{ nodeid_invalid_value } {}
-    constexpr explicit BaseNodeID ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
-    constexpr explicit BaseNodeID ( int const & v_ ) noexcept : id{ v_ } {}
+    constexpr explicit NodeID ( ) noexcept : id{ nodeid_invalid_value } {}
+    constexpr explicit NodeID ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
+    constexpr explicit NodeID ( int const & v_ ) noexcept : id{ v_ } {}
 
     // [[nodiscard]] constexpr int operator( ) ( ) const noexcept { return id; }
 
-    [[nodiscard]] bool operator== ( BaseNodeID const rhs_ ) const noexcept { return id == rhs_.id; }
-    [[nodiscard]] bool operator!= ( BaseNodeID const rhs_ ) const noexcept { return id != rhs_.id; }
+    [[nodiscard]] bool operator== ( NodeID const rhs_ ) const noexcept { return id == rhs_.id; }
+    [[nodiscard]] bool operator!= ( NodeID const rhs_ ) const noexcept { return id != rhs_.id; }
 
     [[nodiscard]] bool is_valid ( ) const noexcept { return id; }
     [[nodiscard]] bool is_invalid ( ) const noexcept { return not is_valid ( ); }
 
     template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, BaseNodeID const id_ ) noexcept {
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, NodeID const id_ ) noexcept {
         if ( nodeid_invalid_value == id_.id ) {
             if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::id ) {
                 out_ << L'*';
@@ -88,9 +87,6 @@ struct BaseNodeID {
 
     static constexpr int nodeid_invalid_value = 0;
 };
-
-using NodeID     = BaseNodeID<int>;
-using NodeIDAtom = BaseNodeID<std::atomic<int>>;
 
 struct rt_meta_data { // 16
 
@@ -205,12 +201,11 @@ struct rooted_tree {
     static constexpr NodeID root_node = NodeID{ 1 };
 };
 
-struct crt_meta_data { // 24
+struct crt_meta_data { // 17
 
-    NodeIDAtom up = NodeIDAtom{ };             // 4 - serves as flag for construction (true means constructed)
-    NodeID prev = NodeID{ }, tail = NodeID{ }; // 8
-    int size = 0;                              // 4
-    tbb::spin_rw_mutex mutex;                  // 8
+    NodeID up = NodeID{ }, prev = NodeID{ }, tail = NodeID{ }; // 12
+    int size = 0;                                              // 4
+    tbb::spin_mutex mutex;                                     // 1
 
     void done ( ) noexcept { ++up.id; }
 
@@ -231,7 +226,7 @@ struct concurrent_rooted_tree {
 
     using data_vector = tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>;
 
-    using mutex      = tbb::spin_rw_mutex;
+    using mutex      = tbb::spin_mutex;
     using lock_guard = mutex::scoped_lock;
 
     using size_type       = int;
@@ -247,8 +242,6 @@ struct concurrent_rooted_tree {
     concurrent_rooted_tree ( ) {
         nodes.reserve ( 128 );
         nodes.grow_by ( 1 );
-        wait_construction ( NodeID{ 0 } );
-        nodes[ 0 ].up.id = 0;
     }
 
     template<typename... Args>
@@ -282,11 +275,10 @@ struct concurrent_rooted_tree {
     [[maybe_unused]] NodeID push_node ( NodeID source_, Node const & node_ ) noexcept {
         iterator target = nodes.push_back ( node_ );
         NodeID id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
-        wait_construction ( id );
         target->up.id = source_.id;
         Node & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
         {
-            lock_guard lock ( source.mutex, true );
+            lock_guard lock ( source.mutex );
             target->prev = std::exchange ( source.tail, id );
             source.size += 1;
         }
@@ -330,13 +322,6 @@ struct concurrent_rooted_tree {
         for ( NodeID child = nodes[ root_node.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.add_node ( root_node, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
-    }
-
-    void wait_construction ( NodeID node_ ) {
-        while ( node_.id >= static_cast<size_type> ( nodes.size ( ) ) ) // Wait allocation.
-            std::this_thread::yield ( );
-        while ( not nodes[ static_cast<typename data_vector::size_type> ( node_.id ) ].up.id ) // Wait construction.
-            std::this_thread::yield ( );
     }
 
     data_vector nodes;
