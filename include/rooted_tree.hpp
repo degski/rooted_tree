@@ -32,6 +32,12 @@
 #include <utility>
 #include <vector>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-W#pragma-messages"
+#pragma GCC diagnostic ignored "-Wmicrosoft-enum-value"
+#include <tbb/tbb.h>
+#pragma GCC diagnostic pop
+
 #include <cereal/cereal.hpp>
 
 namespace sax {
@@ -46,7 +52,7 @@ struct NodeID {
     constexpr explicit NodeID ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
     constexpr explicit NodeID ( int const & v_ ) noexcept : id{ v_ } {}
 
-    [[nodiscard]] constexpr int operator( ) ( ) const noexcept { return id; }
+    // [[nodiscard]] constexpr int operator( ) ( ) const noexcept { return id; }
 
     [[nodiscard]] bool operator== ( NodeID const rhs_ ) const noexcept { return id == rhs_.id; }
     [[nodiscard]] bool operator!= ( NodeID const rhs_ ) const noexcept { return id != rhs_.id; }
