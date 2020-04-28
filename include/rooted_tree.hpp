@@ -159,14 +159,12 @@ struct rooted_tree {
 
     template<typename... Args>
     [[maybe_unused]] NodeID emplace_node ( NodeID source_, Args &&... args_ ) noexcept {
-        NodeID id{ static_cast<size_type> ( nodes.size ( ) ) };
-        Node & t = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-        t.up     = source_;
-        Node & s = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
-        t.prev   = s.tail;
-        s.tail   = id;
-        ++s.size;
-        return id;
+        Node & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+        target.up     = source_;
+        Node & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
+        target.prev   = std::exchange ( source.tail, NodeID{ static_cast<size_type> ( nodes.size ( ) ) } );
+        source.size += 1;
+        return source.tail;
     }
     template<typename... Args>
     [[maybe_unused]] NodeID emplace_root ( Args &&... args_ ) noexcept {
@@ -207,14 +205,12 @@ struct rooted_tree {
     static constexpr NodeID root_node = NodeID{ 1 };
 };
 
-#include <sax/srwlock.hpp>
-
 struct crt_meta_data { // 24
 
     NodeIDAtom up = NodeIDAtom{ };             // 4 - serves as flag for construction (true means constructed)
     NodeID prev = NodeID{ }, tail = NodeID{ }; // 8
     int size = 0;                              // 4
-    sax::SRWLock mutex;                        // 8
+    tbb::spin_rw_mutex mutex;                  // 8
 
     void done ( ) noexcept { ++up.id; }
 
@@ -234,6 +230,9 @@ template<typename Node, typename IDContainer = std::vector<NodeID>>
 struct concurrent_rooted_tree {
 
     using data_vector = tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>;
+
+    using mutex      = tbb::spin_rw_mutex;
+    using lock_guard = mutex::scoped_lock;
 
     using size_type       = int;
     using difference_type = typename data_vector::difference_type;
@@ -281,16 +280,17 @@ struct concurrent_rooted_tree {
     void reserve ( size_type c_ ) { nodes.reserve ( static_cast<typename data_vector::size_type> ( c_ ) ); }
 
     [[maybe_unused]] NodeID push_node ( NodeID source_, Node const & node_ ) noexcept {
-        iterator t_it = nodes.push_back ( node_ );
-        NodeID t_id{ static_cast<size_type> ( std::distance ( begin ( ), t_it ) ) };
-        wait_construction ( t_id );
-        t_it->up.id = source_.id;
-        Node & s    = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
-        std::lock_guard<sax::SRWLock> lock ( s.mutex );
-        t_it->prev = s.tail;
-        s.tail     = t_id;
-        ++s.size;
-        return t_id;
+        iterator target = nodes.push_back ( node_ );
+        NodeID id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+        wait_construction ( id );
+        target->up.id = source_.id;
+        Node & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
+        {
+            lock_guard lock ( source.mutex, true );
+            target->prev = std::exchange ( source.tail, id );
+            source.size += 1;
+        }
+        return id;
     }
 
     template<typename... Args>
