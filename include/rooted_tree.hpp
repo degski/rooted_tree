@@ -233,11 +233,11 @@ struct rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    nid search ( ) const noexcept {
+    nid search ( nid root_ = nid{ root.id } ) const noexcept {
         std::vector<char> visited ( nodes.size ( ), 0 );
-        visited[ root.id ] = 1;
+        visited[ root_.id ] = 1;
         id_deque queue;
-        queue.push_back ( root );
+        queue.push_back ( root_ );
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
@@ -256,29 +256,31 @@ struct rooted_tree {
     // and discard the rest of the tree.
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
-        rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
+        rooted_tree sub_tree;
         id_vector visited ( nodes.size ( ), nid{ 0 } );
         visited[ root_.id ] = sub_tree.root;
-        id_vector stack;
-        stack.reserve ( 64u );
-        stack.push_back ( root_ );
-        while ( stack.size ( ) ) {
-            nid parent = stack.back ( );
-            stack.pop_back ( );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+        id_deque queue;
+        queue.push_back ( root_ );
+        int node_cnt = sub_tree.root.id;
+        while ( queue.size ( ) ) {
+            nid parent = queue.front ( );
+            queue.pop_front ( );
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = sub_tree.emplace ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
-                    if ( nodes[ child.id ].size )
-                        stack.push_back ( child );
+                    visited[ child.id ] = nid{ ++node_cnt };
+                    queue.push_back ( child );
                 }
+            }
+            sub_tree.emplace ( visited[ nodes[ parent.id ].up ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
         }
         std::swap ( nodes, sub_tree.nodes );
     }
 
     // Remove all but root and ply 1.
     void flatten ( ) {
+        nid child = nodes[ root.id ].tail;
         rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
-        for ( nid child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+        for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
     }
@@ -429,33 +431,54 @@ struct concurrent_rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
+    nid search ( nid root_ = nid{ root.id } ) const noexcept {
+        std::vector<char> visited ( nodes.size ( ), 0 );
+        visited[ root_.id ] = 1;
+        id_deque queue;
+        queue.push_back ( root_ );
+        while ( queue.size ( ) ) {
+            nid parent = queue.front ( );
+            queue.pop_front ( );
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                if ( not visited[ child.id ] ) {
+                    // Do something here.
+                    visited[ child.id ] = 1;
+                    if ( nodes[ child.id ].size )
+                        queue.push_back ( child );
+                }
+        }
+        return nid{ 0 };
+    }
+
     // Make root_ (must exist) the new root of the tree
     // and discard the rest of the tree.
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
-        rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
+        concurrent_rooted_tree sub_tree;
         id_vector visited ( nodes.size ( ), nid{ 0 } );
         visited[ root_.id ] = sub_tree.root;
-        id_vector stack;
-        stack.reserve ( 64u );
-        stack.push_back ( root_ );
-        while ( stack.size ( ) ) {
-            nid parent = stack.back ( );
-            stack.pop_back ( );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+        id_deque queue;
+        queue.push_back ( root_ );
+        int node_cnt = sub_tree.root.id;
+        while ( queue.size ( ) ) {
+            nid parent = queue.front ( );
+            queue.pop_front ( );
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = sub_tree.emplace ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
-                    if ( nodes[ child.id ].size )
-                        stack.push_back ( child );
+                    visited[ child.id ] = nid{ ++node_cnt };
+                    queue.push_back ( child );
                 }
+            }
+            sub_tree.emplace ( visited[ nodes[ parent.id ].up ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
         }
         std::swap ( nodes, sub_tree.nodes );
     }
 
     // Remove all but root and ply 1.
     void flatten ( ) {
-        rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
-        for ( nid child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+        nid child = nodes[ root.id ].tail;
+        concurrent_rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
+        for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
     }
