@@ -170,7 +170,7 @@ struct rooted_tree {
 
     // Make root_ the new root of the tree and discard the rest of the tree.
     void root ( NodeID root_ ) {
-        assert ( NodeID::invalid ( ) != root_ );
+        assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
         IDContainer visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root_node;
@@ -206,8 +206,6 @@ struct crt_meta_data { // 17
     NodeID up = NodeID{ }, prev = NodeID{ }, tail = NodeID{ }; // 12
     int size = 0;                                              // 4
     tbb::spin_mutex mutex;                                     // 1
-
-    void done ( ) noexcept { ++up.id; }
 
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, crt_meta_data const node_ ) noexcept {
@@ -274,15 +272,12 @@ struct concurrent_rooted_tree {
 
     [[maybe_unused]] NodeID push_node ( NodeID source_, Node const & node_ ) noexcept {
         iterator target = nodes.push_back ( node_ );
-        NodeID id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
-        target->up.id = source_.id;
-        Node & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
-        {
-            lock_guard lock ( source.mutex );
-            target->prev = std::exchange ( source.tail, id );
-            source.size += 1;
-        }
-        return id;
+        target->up.id   = source_.id;
+        Node & source   = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
+        lock_guard lock ( source.mutex );
+        target->prev = std::exchange ( source.tail, NodeID{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) } );
+        source.size += 1;
+        return source.tail;
     }
 
     template<typename... Args>
@@ -298,7 +293,7 @@ struct concurrent_rooted_tree {
 
     // Make root_ the new root of the tree and discard the rest of the tree.
     void root ( NodeID root_ ) {
-        assert ( NodeID::invalid ( ) != root_ );
+        assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
         IDContainer visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root_node;
