@@ -45,6 +45,7 @@
 
 namespace ThreadID {
 
+// Don't ever call.
 [[nodiscard]] inline int get_new_id ( ) noexcept {
     static std::atomic<int> id = 0;
     return id++;
@@ -95,6 +96,21 @@ void add_nodes ( Tree & tree_, int n_ ) {
 int main ( ) {
 
     {
+        SequentailTree tree ( 1 );
+
+        plf::nanotimer timer;
+
+        timer.start ( );
+
+        add_nodes ( tree, 4'000'000 - 2 );
+
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+
+        std::cout << duration << "ms" << nl << nl;
+        std::cout << tree.nodes.size ( ) << nl;
+    }
+
+    {
         ConcurrentTree tree ( 1 );
 
         std::vector<std::thread> threads;
@@ -106,23 +122,8 @@ int main ( ) {
 
         for ( int n = 0; n < 4; ++n )
             threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'000 + 1 );
-        for ( auto & t : threads )
+        for ( std::thread & t : threads )
             t.join ( );
-
-        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-
-        std::cout << duration << "ms" << nl << nl;
-        std::cout << tree.nodes.size ( ) << nl;
-    }
-
-    {
-        SequentailTree tree ( 1 );
-
-        plf::nanotimer timer;
-
-        timer.start ( );
-
-        add_nodes ( tree, 4'000'000 - 2 );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
 

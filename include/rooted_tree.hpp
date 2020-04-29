@@ -46,8 +46,6 @@ struct NodeID {
 
     int id;
 
-    static constexpr NodeID invalid ( ) noexcept { return NodeID{ nodeid_invalid_value }; }
-
     constexpr explicit NodeID ( ) noexcept : id{ nodeid_invalid_value } {}
     constexpr explicit NodeID ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
     constexpr explicit NodeID ( int const & v_ ) noexcept : id{ v_ } {}
@@ -167,7 +165,8 @@ struct rooted_tree {
         return emplace ( NodeID{ 0 }, std::forward<Args> ( args_ )... );
     }
 
-    // Make root_ the new root of the tree and discard the rest of the tree.
+    // Make root_ (must exist) the new root of the tree
+    // and discard the rest of the tree.
     void reroot ( NodeID root_ ) {
         assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
@@ -180,7 +179,7 @@ struct rooted_tree {
             NodeID parent = stack.back ( );
             stack.pop_back ( );
             for ( NodeID child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                if ( NodeID::invalid ( ) == visited[ child.id ] ) {
+                if ( visited[ child.id ].is_invalid ( ) ) {
                     visited[ child.id ] = sub_tree.add ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
                     stack.push_back ( child );
                 }
@@ -291,7 +290,8 @@ struct concurrent_rooted_tree {
         return emplace ( NodeID{ 0 }, std::forward<Args> ( args_ )... );
     }
 
-    // Make root_ the new root of the tree and discard the rest of the tree.
+    // Make root_ (must exist) the new root of the tree
+    // and discard the rest of the tree.
     void reroot ( NodeID root_ ) {
         assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
@@ -304,7 +304,7 @@ struct concurrent_rooted_tree {
             NodeID parent = stack.back ( );
             stack.pop_back ( );
             for ( NodeID child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                if ( NodeID::invalid ( ) == visited[ child.id ] ) {
+                if ( visited[ child.id ].is_invalid ( ) ) {
                     visited[ child.id ] = sub_tree.add ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
                     stack.push_back ( child );
                 }
