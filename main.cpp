@@ -89,7 +89,7 @@ using SequentailTree = sax::rooted_tree<foo<sax::rt_hook>>;
 
 template<typename Tree>
 void add_nodes ( Tree & tree_, int n_ ) {
-    for ( int i = 2; i < n_; ++i )
+    for ( int i = 1; i < n_; ++i )
         tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
                         i );
 }
@@ -103,7 +103,7 @@ int main ( ) {
 
         timer.start ( );
 
-        add_nodes ( tree, 4'000'000 - 2 );
+        add_nodes ( tree, 4'000'001 );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
 
@@ -122,7 +122,7 @@ int main ( ) {
         timer.start ( );
 
         for ( int n = 0; n < 4; ++n )
-            threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'000 + 1 );
+            threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
         for ( std::thread & t : threads )
             t.join ( );
 
