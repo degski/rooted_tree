@@ -46,11 +46,13 @@ struct nid {
 
     int id;
 
-    constexpr explicit nid ( ) noexcept : id{ nid_invalid_v } {}
+    private:
+    friend struct crt_hook;
+    nid ( ) noexcept {}
+
+    public:
     constexpr explicit nid ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
     constexpr explicit nid ( int const & v_ ) noexcept : id{ v_ } {}
-
-    // [[nodiscard]] constexpr int operator( ) ( ) const noexcept { return id; }
 
     [[nodiscard]] bool operator== ( nid const rhs_ ) const noexcept { return id == rhs_.id; }
     [[nodiscard]] bool operator!= ( nid const rhs_ ) const noexcept { return id != rhs_.id; }
@@ -89,8 +91,8 @@ inline constexpr int reserve_size = 1'024;
 
 struct rt_hook { // 16
 
-    nid up = nid{ }, prev = nid{ }, tail = nid{ }; // 12
-    int size = 0;                                  // 4
+    nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
+    int size = 0;
 
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rt_hook const node_ ) noexcept {
@@ -189,6 +191,7 @@ struct rooted_tree {
         std::swap ( nodes, sub_tree.nodes );
     }
 
+    // Remove all but root and ply 1.
     void flatten ( ) {
         rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
         for ( nid child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
@@ -203,10 +206,10 @@ struct rooted_tree {
 
 struct crt_hook { // 16
 
-    nid up, prev, tail;         // 12
-    short size;                 // 2
-    tbb::spin_mutex mutex;      // 1
-    tbb::atomic<char> done = 1; // 1
+    nid up, prev, tail;
+    short size;
+    tbb::spin_mutex mutex;
+    tbb::atomic<char const> done = 1; // Indicates the node is constructed (allocated with zeroed memory).
 
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, crt_hook const node_ ) noexcept {
@@ -315,6 +318,7 @@ struct concurrent_rooted_tree {
         std::swap ( nodes, sub_tree.nodes );
     }
 
+    // Remove all but root and ply 1.
     void flatten ( ) {
         rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
         for ( nid child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
