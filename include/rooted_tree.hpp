@@ -37,17 +37,18 @@
 #    pragma GCC diagnostic ignored "-Wmicrosoft-enum-value"
 #endif
 #ifndef TBB_SUPPRESS_DEPRECATED_MESSAGES
-#    define DEL_TBB_SDM
+#    define UNDEF_TBB_SUPPRESS_DEPRECATED_MESSAGES
 #    define TBB_SUPPRESS_DEPRECATED_MESSAGES 1
 #endif
 #include <tbb/tbb.h>
-#if defined( DEL_TBB_SDM )
+#if defined( UNDEF_TBB_SUPPRESS_DEPRECATED_MESSAGES )
 #    undef TBB_SUPPRESS_DEPRECATED_MESSAGES
-#    undef DEL_TBB_SDM
+#    undef UNDEF_TBB_SUPPRESS_DEPRECATED_MESSAGES
 #endif
 #if ( defined( __clang__ ) or defined( __GNUC__ ) )
 #    pragma GCC diagnostic pop
 #endif
+
 #include <cereal/cereal.hpp>
 
 namespace sax {
