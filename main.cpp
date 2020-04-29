@@ -89,8 +89,8 @@ using SequentailTree = sax::rooted_tree<foo<sax::rt_hook>>;
 template<typename Tree>
 void add_nodes ( Tree & tree_, int n_ ) {
     for ( int i = 2; i < n_; ++i )
-        tree_.emplace (
-            sax::NodeID{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) }, i );
+        tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
+                        i );
 }
 
 int main ( ) {
