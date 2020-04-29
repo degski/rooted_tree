@@ -49,6 +49,8 @@
 #    pragma GCC diagnostic pop
 #endif
 
+#include <boost/container/deque.hpp>
+
 #include <cereal/cereal.hpp>
 
 namespace sax {
@@ -98,6 +100,9 @@ struct nid {
     static constexpr int nid_invalid_v = 0;
 };
 
+using id_vector = std::vector<nid>;
+using id_deque  = boost::container::deque<nid>;
+
 inline constexpr int reserve_size = 1'024;
 
 struct rt_hook { // 16
@@ -117,10 +122,10 @@ struct rt_hook { // 16
     }
 };
 
-template<typename Node, typename Container = std::vector<Node>, typename IDContainer = std::vector<nid>>
+template<typename Node>
 struct rooted_tree {
 
-    using data_vector     = Container;
+    using data_vector     = std::vector<Node>;
     using size_type       = int;
     using difference_type = int;
     using value_type      = typename data_vector::value_type;
@@ -166,8 +171,8 @@ struct rooted_tree {
 
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
-        value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
         nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+        value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
         target.up           = source_;
         value_type & source = nodes[ source_.id ];
         target.prev         = std::exchange ( source.tail, id );
@@ -180,14 +185,80 @@ struct rooted_tree {
         return emplace ( nid{ 0 }, std::forward<Args> ( args_ )... );
     }
 
+    class out_iterator {
+
+        friend struct rooted_tree;
+
+        rooted_tree & tree;
+        nid node;
+
+        public:
+        out_iterator ( rooted_tree & tree_, nid const node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+
+        [[maybe_unused]] out_iterator & operator++ ( ) noexcept {
+            node = tree[ node.id ].prev;
+            return *this;
+        }
+
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    class const_out_iterator {
+
+        friend struct rooted_tree;
+
+        rooted_tree const & tree;
+        nid node;
+
+        public:
+        const_out_iterator ( rooted_tree const & tree_, nid const node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+
+        [[maybe_unused]] const_out_iterator & operator++ ( ) noexcept {
+            node = tree[ node.id ].prev;
+            return *this;
+        }
+
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
+
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    nid search ( ) const noexcept {
+        std::vector<char> visited ( nodes.size ( ), 0 );
+        visited[ root.id ] = 1;
+        id_vector queue;
+        queue.push_back ( root );
+        while ( queue.size ( ) ) {
+            nid parent = queue.back ( );
+            queue.pop_back ( );
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                if ( not visited[ child.id ] ) {
+                    std::cout << child.id << '\n';
+                    visited[ child.id ] = 1;
+                    queue.push_back ( child );
+                }
+        }
+        return nid{ 0 };
+    }
+
     // Make root_ (must exist) the new root of the tree
     // and discard the rest of the tree.
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
-        IDContainer visited ( nodes.size ( ) );
+        id_vector visited ( nodes.size ( ), nid{ 0 } );
         visited[ root_.id ] = sub_tree.root;
-        IDContainer stack;
+        id_vector stack;
         stack.reserve ( 64u );
         stack.push_back ( root_ );
         while ( stack.size ( ) ) {
@@ -195,7 +266,7 @@ struct rooted_tree {
             stack.pop_back ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = sub_tree.add ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
+                    visited[ child.id ] = sub_tree.emplace ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
                     stack.push_back ( child );
                 }
         }
@@ -206,7 +277,7 @@ struct rooted_tree {
     void flatten ( ) {
         rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
         for ( nid child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-            sub_tree.add ( root, std::move ( nodes[ child.id ] ) );
+            sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
     }
 
@@ -234,7 +305,7 @@ struct crt_hook { // 16
     }
 };
 
-template<typename Node, typename IDContainer = std::vector<nid>>
+template<typename Node, typename id_vector = std::vector<nid>>
 struct concurrent_rooted_tree {
 
     using data_vector     = tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>;
@@ -307,14 +378,63 @@ struct concurrent_rooted_tree {
         return emplace ( nid{ 0 }, std::forward<Args> ( args_ )... );
     }
 
+    class out_iterator {
+
+        friend struct concurrent_rooted_tree;
+
+        concurrent_rooted_tree & tree;
+        nid node;
+
+        public:
+        out_iterator ( concurrent_rooted_tree & tree_, nid const node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+
+        [[maybe_unused]] out_iterator & operator++ ( ) noexcept {
+            node = tree[ node.id ].prev;
+            return *this;
+        }
+
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    class const_out_iterator {
+
+        friend struct concurrent_rooted_tree;
+
+        concurrent_rooted_tree const & tree;
+        nid node;
+
+        public:
+        const_out_iterator ( concurrent_rooted_tree const & tree_, nid const node_ ) noexcept :
+            tree{ tree_ }, node{ tree[ node_.id ].tail } {}
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+
+        [[maybe_unused]] const_out_iterator & operator++ ( ) noexcept {
+            node = tree[ node.id ].prev;
+            return *this;
+        }
+
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
+
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
     // Make root_ (must exist) the new root of the tree
     // and discard the rest of the tree.
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
-        IDContainer visited ( nodes.size ( ) );
+        id_vector visited ( nodes.size ( ), nid{ 0 } );
         visited[ root_.id ] = sub_tree.root;
-        IDContainer stack;
+        id_vector stack;
         stack.reserve ( 64u );
         stack.push_back ( root_ );
         while ( stack.size ( ) ) {
@@ -322,7 +442,7 @@ struct concurrent_rooted_tree {
             stack.pop_back ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = sub_tree.add ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
+                    visited[ child.id ] = sub_tree.emplace ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
                     stack.push_back ( child );
                 }
         }
@@ -333,7 +453,7 @@ struct concurrent_rooted_tree {
     void flatten ( ) {
         rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
         for ( nid child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-            sub_tree.add ( root, std::move ( nodes[ child.id ] ) );
+            sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
     }
 

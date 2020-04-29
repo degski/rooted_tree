@@ -94,6 +94,11 @@ void add_nodes ( Tree & tree_, int n_ ) {
                         i );
 }
 
+auto test ( int const & v, foo<sax::rt_hook> const & n ) noexcept -> bool {
+    std::cout << n.value << nl;
+    return v == n.value;
+}
+
 int main ( ) {
 
     {
@@ -106,6 +111,8 @@ int main ( ) {
         add_nodes ( tree, 4'000'001 );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+
+        // std::cout << tree.search ( ).id << nl;
 
         std::cout << duration << "ms" << nl << nl;
         std::cout << tree.nodes.size ( ) << nl;
@@ -123,14 +130,64 @@ int main ( ) {
 
         for ( int n = 0; n < 4; ++n )
             threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
-        for ( std::thread & t : threads )
-            t.join ( );
+        for ( std::thread & tree : threads )
+            tree.join ( );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
 
         std::cout << duration << "ms" << nl << nl;
         std::cout << tree.nodes.size ( ) << nl;
     }
+
+    return EXIT_SUCCESS;
+}
+
+int main678768 ( ) {
+
+    SequentailTree tree ( 1 );
+
+    using It = SequentailTree::const_out_iterator;
+
+    sax::nid n2 = tree.emplace ( tree.root, 2 );
+
+    sax::nid n3 = tree.emplace ( tree.root, 3 );
+
+    sax::nid n4 = tree.emplace ( tree.root, 4 );
+
+    sax::nid n5 = tree.emplace ( n2, 5 );
+
+    sax::nid n6 = tree.emplace ( n2, 6 );
+
+    sax::nid n7 = tree.emplace ( n3, 7 );
+
+    sax::nid n8 = tree.emplace ( n4, 8 );
+
+    sax::nid n9 = tree.emplace ( tree.root, 9 );
+
+    sax::nid n10 = tree.emplace ( n4, 10 );
+
+    sax::nid n11 = tree.emplace ( n2, 11 );
+
+    sax::nid n12 = tree.emplace ( n2, 12 );
+
+    std::cout << tree.nodes.size ( ) << nl;
+
+    for ( It it{ tree, tree.root }; it.is_valid ( ); ++it )
+        std::cout << it->value << ' ';
+
+    std::cout << nl;
+
+    for ( It it{ tree, n2 }; it.is_valid ( ); ++it )
+        std::cout << it->value << ' ';
+
+    std::cout << nl;
+
+    tree.reroot ( n2 );
+
+    for ( It it{ tree, tree.root }; it.is_valid ( ); ++it )
+        std::cout << it->value << ' ';
+
+    std::cout << nl;
 
     return EXIT_SUCCESS;
 }
