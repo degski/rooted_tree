@@ -123,7 +123,7 @@ struct rooted_tree {
 
     template<typename... Args>
     rooted_tree ( Args &&... args_ ) : rooted_tree ( ) {
-        nodes.emplace_back ( std::forward<Args> ( args_ )... );
+        emplace_root ( std::forward<Args> ( args_ )... );
     }
 
     [[nodiscard]] const_pointer data ( ) const noexcept { return nodes.data ( ); }
@@ -199,11 +199,12 @@ struct rooted_tree {
     static constexpr nid root = nid{ 1 };
 };
 
-struct crt_hook { // 17
+struct crt_hook { // 16
 
-    nid up = nid{ }, prev = nid{ }, tail = nid{ }; // 12
-    int size = 0;                                  // 4
-    tbb::spin_mutex mutex;                         // 1
+    nid up, prev, tail;         // 12
+    short size;                 // 2
+    tbb::spin_mutex mutex;      // 1
+    tbb::atomic<char> done = 1; // 1
 
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, crt_hook const node_ ) noexcept {
@@ -220,7 +221,7 @@ struct crt_hook { // 17
 template<typename Node, typename IDContainer = std::vector<nid>>
 struct concurrent_rooted_tree {
 
-    using data_vector     = tbb::concurrent_vector<Node, std::allocator<Node>>;
+    using data_vector     = tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>;
     using mutex           = tbb::spin_mutex;
     using lock_guard      = mutex::scoped_lock;
     using size_type       = int;
@@ -240,7 +241,7 @@ struct concurrent_rooted_tree {
 
     template<typename... Args>
     concurrent_rooted_tree ( Args &&... args_ ) : concurrent_rooted_tree ( ) {
-        push ( nid{ 0 }, value_type{ std::forward<Args> ( args_ )... } );
+        emplace_root ( std::forward<Args> ( args_ )... );
     }
 
     [[nodiscard]] const_pointer data ( ) const noexcept { return nodes.data ( ); }
