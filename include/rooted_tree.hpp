@@ -188,7 +188,7 @@ struct rooted_tree {
     }
 
     void flatten ( ) {
-        rooted_tree sub_tree{ std::move ( nodes[ root.id ].data ) };
+        rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
         for ( NodeID child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.add ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
@@ -313,7 +313,7 @@ struct concurrent_rooted_tree {
     }
 
     void flatten ( ) {
-        rooted_tree sub_tree{ std::move ( nodes[ root.id ].data ) };
+        rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
         for ( NodeID child = nodes[ root.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.add ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
