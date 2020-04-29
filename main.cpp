@@ -44,20 +44,21 @@
 #endif
 
 namespace ThreadID {
-
-// Don't ever call.
-[[nodiscard]] inline int get_new_id ( ) noexcept {
+// Creates a new ID.
+[[nodiscard]] inline int next ( ) noexcept {
     static std::atomic<int> id = 0;
     return id++;
 }
+// Returns ID of this thread.
 [[nodiscard]] inline int get ( ) noexcept {
-    static thread_local int tl_id = get_new_id ( );
+    static thread_local int tl_id = next ( );
     return tl_id;
 }
 } // namespace ThreadID
 
 namespace Rng {
-
+// A global instance of a C++ implementation
+// of Chris Doty-Humphrey's Small Fast Chaotic Prng.
 [[nodiscard]] inline sax::Rng & generator ( ) noexcept {
     if constexpr ( RANDOM ) {
         static thread_local sax::Rng generator ( sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ) );

@@ -85,6 +85,8 @@ struct nid {
     static constexpr int nid_invalid_v = 0;
 };
 
+inline constexpr int reserve_size = 1'024;
+
 struct rt_hook { // 16
 
     nid up = nid{ }, prev = nid{ }, tail = nid{ }; // 12
@@ -117,7 +119,7 @@ struct rooted_tree {
     using const_iterator  = typename data_vector::const_iterator;
 
     rooted_tree ( ) {
-        nodes.reserve ( 128 );
+        nodes.reserve ( reserve_size );
         nodes.emplace_back ( );
     }
 
@@ -235,7 +237,7 @@ struct concurrent_rooted_tree {
     using const_iterator  = typename data_vector::const_iterator;
 
     concurrent_rooted_tree ( ) {
-        nodes.reserve ( 128 );
+        nodes.reserve ( reserve_size );
         nodes.grow_by ( 1 );
     }
 
