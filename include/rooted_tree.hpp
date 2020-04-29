@@ -154,11 +154,12 @@ struct rooted_tree {
     template<typename... Args>
     [[maybe_unused]] NodeID emplace ( NodeID source_, Args &&... args_ ) noexcept {
         Node & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+        NodeID id{ static_cast<size_type> ( nodes.size ( ) ) };
         target.up     = source_;
         Node & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
-        target.prev   = std::exchange ( source.tail, NodeID{ static_cast<size_type> ( nodes.size ( ) ) } );
+        target.prev   = std::exchange ( source.tail, id );
         source.size += 1;
-        return source.tail;
+        return id;
     }
     template<typename... Args>
     [[maybe_unused]] NodeID emplace_root ( Args &&... args_ ) noexcept {
