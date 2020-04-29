@@ -154,7 +154,7 @@ struct rooted_tree {
         value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
         nid id{ static_cast<size_type> ( nodes.size ( ) ) };
         target.up           = source_;
-        value_type & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
+        value_type & source = nodes[ source_.id ];
         target.prev         = std::exchange ( source.tail, id );
         source.size += 1;
         return id;
@@ -270,7 +270,7 @@ struct concurrent_rooted_tree {
         iterator target = nodes.push_back ( node_ );
         nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
         target->up.id       = source_.id;
-        value_type & source = nodes[ static_cast<typename data_vector::size_type> ( source_.id ) ];
+        value_type & source = nodes[ source_.id ];
         {
             lock_guard lock ( source.mutex );
             target->prev = std::exchange ( source.tail, id );
