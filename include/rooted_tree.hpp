@@ -169,7 +169,7 @@ struct rooted_tree {
 
     // Make root_ the new root of the tree and discard the rest of the tree.
     void reroot ( NodeID root_ ) {
-        assert ( NodeID::invalid ( ) != root_ );
+        assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
         IDContainer visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
@@ -293,7 +293,7 @@ struct concurrent_rooted_tree {
 
     // Make root_ the new root of the tree and discard the rest of the tree.
     void reroot ( NodeID root_ ) {
-        assert ( NodeID::invalid ( ) != root_ );
+        assert ( root_.is_valid ( ) );
         rooted_tree sub_tree{ std::move ( nodes[ root_.id ] ) };
         IDContainer visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
