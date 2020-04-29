@@ -34,13 +34,17 @@
 
 #if ( defined( __clang__ ) or defined( __GNUC__ ) )
 #    pragma GCC diagnostic push
-#    pragma GCC diagnostic ignored "-W#pragma-messages"
 #    pragma GCC diagnostic ignored "-Wmicrosoft-enum-value"
 #endif
 #ifndef TBB_SUPPRESS_DEPRECATED_MESSAGES
+#    define DEL_TBB_SDM
 #    define TBB_SUPPRESS_DEPRECATED_MESSAGES 1
 #endif
 #include <tbb/tbb.h>
+#if defined( DEL_TBB_SDM )
+#    undef TBB_SUPPRESS_DEPRECATED_MESSAGES
+#    undef DEL_TBB_SDM
+#endif
 #if ( defined( __clang__ ) or defined( __GNUC__ ) )
 #    pragma GCC diagnostic pop
 #endif
