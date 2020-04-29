@@ -236,16 +236,17 @@ struct rooted_tree {
     nid search ( ) const noexcept {
         std::vector<char> visited ( nodes.size ( ), 0 );
         visited[ root.id ] = 1;
-        id_vector queue;
+        id_deque queue;
         queue.push_back ( root );
         while ( queue.size ( ) ) {
-            nid parent = queue.back ( );
-            queue.pop_back ( );
+            nid parent = queue.front ( );
+            queue.pop_front ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                 if ( not visited[ child.id ] ) {
-                    std::cout << child.id << '\n';
+                    // Do something here.
                     visited[ child.id ] = 1;
-                    queue.push_back ( child );
+                    if ( nodes[ child.id ].size )
+                        queue.push_back ( child );
                 }
         }
         return nid{ 0 };
@@ -267,7 +268,8 @@ struct rooted_tree {
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                 if ( visited[ child.id ].is_invalid ( ) ) {
                     visited[ child.id ] = sub_tree.emplace ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
-                    stack.push_back ( child );
+                    if ( nodes[ child.id ].size )
+                        stack.push_back ( child );
                 }
         }
         std::swap ( nodes, sub_tree.nodes );
@@ -443,7 +445,8 @@ struct concurrent_rooted_tree {
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                 if ( visited[ child.id ].is_invalid ( ) ) {
                     visited[ child.id ] = sub_tree.emplace ( visited[ parent.id ], std::move ( nodes[ child.id ] ) );
-                    stack.push_back ( child );
+                    if ( nodes[ child.id ].size )
+                        stack.push_back ( child );
                 }
         }
         std::swap ( nodes, sub_tree.nodes );

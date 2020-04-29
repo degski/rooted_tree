@@ -99,7 +99,7 @@ auto test ( int const & v, foo<sax::rt_hook> const & n ) noexcept -> bool {
     return v == n.value;
 }
 
-int main ( ) {
+int main567657 ( ) {
 
     {
         SequentailTree tree ( 1 );
@@ -142,11 +142,9 @@ int main ( ) {
     return EXIT_SUCCESS;
 }
 
-int main678768 ( ) {
+int main ( ) {
 
     SequentailTree tree ( 1 );
-
-    using It = SequentailTree::const_out_iterator;
 
     sax::nid n2 = tree.emplace ( tree.root, 2 );
 
@@ -170,22 +168,26 @@ int main678768 ( ) {
 
     sax::nid n12 = tree.emplace ( n2, 12 );
 
-    std::cout << tree.nodes.size ( ) << nl;
+    // std::cout << tree.nodes.size ( ) << nl;
 
-    for ( It it{ tree, tree.root }; it.is_valid ( ); ++it )
+    /*
+    for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
         std::cout << it->value << ' ';
 
     std::cout << nl;
 
-    for ( It it{ tree, n2 }; it.is_valid ( ); ++it )
+    for ( SequentailTree::const_out_iterator it{ tree, n2 }; it.is_valid ( ); ++it )
         std::cout << it->value << ' ';
 
     std::cout << nl;
+    */
 
-    tree.reroot ( n2 );
+    // tree.reroot ( n2 );
 
-    for ( It it{ tree, tree.root }; it.is_valid ( ); ++it )
-        std::cout << it->value << ' ';
+    //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
+    //    std::cout << it->value << ' ';
+
+    tree.search ( );
 
     std::cout << nl;
 
