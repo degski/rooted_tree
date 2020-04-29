@@ -32,12 +32,18 @@
 #include <utility>
 #include <vector>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-W#pragma-messages"
-#pragma GCC diagnostic ignored "-Wmicrosoft-enum-value"
+#if ( defined( __clang__ ) or defined( __GNUC__ ) )
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-W#pragma-messages"
+#    pragma GCC diagnostic ignored "-Wmicrosoft-enum-value"
+#endif
+#ifndef TBB_SUPPRESS_DEPRECATED_MESSAGES
+#    define TBB_SUPPRESS_DEPRECATED_MESSAGES 1
+#endif
 #include <tbb/tbb.h>
-#pragma GCC diagnostic pop
-
+#if ( defined( __clang__ ) or defined( __GNUC__ ) )
+#    pragma GCC diagnostic pop
+#endif
 #include <cereal/cereal.hpp>
 
 namespace sax {
@@ -48,7 +54,7 @@ struct nid {
 
     private:
     friend struct crt_hook;
-    nid ( ) noexcept {}
+    nid ( ) noexcept {} // id uninitialized.
 
     public:
     constexpr explicit nid ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
