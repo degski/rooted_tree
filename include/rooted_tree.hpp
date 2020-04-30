@@ -272,7 +272,7 @@ struct rooted_tree {
     // nid of the node that made function return true.
     template<typename Function, typename Value>
     [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
-                              nid root_ = nid{ root.id } ) const noexcept {
+                              nid root_ = nid{ root.id } ) const {
         id_deque queue ( 1, root_ );
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
@@ -492,7 +492,7 @@ struct concurrent_rooted_tree {
     // nid of the node that made function return true.
     template<typename Function, typename Value>
     [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
-                              nid root_ = nid{ root.id } ) const noexcept {
+                              nid root_ = nid{ root.id } ) const {
         id_deque queue ( 1, root_ );
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
