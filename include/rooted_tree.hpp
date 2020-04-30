@@ -267,21 +267,26 @@ struct rooted_tree {
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
             }
-            hgt += 1;
         }
         return hgt;
     }
 
-    nid find ( nid root_ = nid{ root.id } ) const noexcept {
+    template<typename Value, typename Function>
+    nid find ( Value const & v_, Function compare_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
-        while ( queue.size ( ) ) {
-            nid parent = pop ( queue );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                queue.push_back ( child );
-            // Do something here ( with parent ).
-            std::cout << parent << ' ';
+        size_type depth = 0, count;
+        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+            while ( count-- ) {
+                nid parent = pop ( queue );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                    queue.push_back ( child );
+                if ( compare_ ( v_, nodes[ parent.id ] ) )
+                    return parent;
+            }
+            if ( max_depth_ )
+                if ( max_depth_ == ++depth )
+                    break;
         }
-        std::cout << '\n';
         return nid{ 0 };
     }
 
@@ -289,7 +294,7 @@ struct rooted_tree {
     // and discard the rest of the tree.
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
-        rooted_tree sub_tree;
+        std::remove_reference_t<decltype ( *this )> sub_tree;
         id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
         id_deque queue ( 1, root_ );
@@ -310,7 +315,7 @@ struct rooted_tree {
     // Remove all but root and ply 1.
     void flatten ( ) {
         nid child = nodes[ root.id ].tail;
-        rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) }; // old root destroyed.
+        std::remove_reference_t<decltype ( *this )> sub_tree{ std::move ( nodes[ root.id ] ) }; // old root destroyed.
         for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
@@ -471,21 +476,26 @@ struct concurrent_rooted_tree {
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
             }
-            hgt += 1;
         }
         return hgt;
     }
 
-    nid find ( nid root_ = nid{ root.id } ) const noexcept {
+    template<typename Value, typename Function>
+    nid find ( Value const & v_, Function compare_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
-        while ( queue.size ( ) ) {
-            nid parent = pop ( queue );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                queue.push_back ( child );
-            // Do something here ( with parent ).
-            std::cout << parent << ' ';
+        size_type depth = 0, count;
+        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+            while ( count-- ) {
+                nid parent = pop ( queue );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                    queue.push_back ( child );
+                if ( compare_ ( v_, nodes[ parent.id ] ) )
+                    return parent;
+            }
+            if ( max_depth_ )
+                if ( max_depth_ == ++depth )
+                    break;
         }
-        std::cout << '\n';
         return nid{ 0 };
     }
 
@@ -493,7 +503,7 @@ struct concurrent_rooted_tree {
     // and discard the rest of the tree.
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
-        concurrent_rooted_tree sub_tree;
+        std::remove_reference_t<decltype ( *this )> sub_tree;
         id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
         id_deque queue ( 1, root_ );
@@ -514,7 +524,7 @@ struct concurrent_rooted_tree {
     // Remove all but root and ply 1.
     void flatten ( ) {
         nid child = nodes[ root.id ].tail;
-        concurrent_rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
+        std::remove_reference_t<decltype ( *this )> sub_tree{ std::move ( nodes[ root.id ] ) }; // old root destroyed.
         for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );

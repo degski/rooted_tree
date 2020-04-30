@@ -94,11 +94,6 @@ void add_nodes ( Tree & tree_, int n_ ) {
                         i );
 }
 
-auto test ( int const & v, foo<sax::rt_hook> const & n ) noexcept -> bool {
-    std::cout << n.value << nl;
-    return v == n.value;
-}
-
 int main567657 ( ) {
 
     {
@@ -111,8 +106,6 @@ int main567657 ( ) {
         add_nodes ( tree, 4'000'001 );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-
-        // std::cout << tree.search ( ).id << nl;
 
         std::cout << duration << "ms" << nl << nl;
         std::cout << tree.nodes.size ( ) << nl;
@@ -170,8 +163,6 @@ int main ( ) {
 
     sax::nid n13 = tree.emplace ( n12, 13 );
 
-    // std::cout << tree.nodes.size ( ) << nl;
-
     /*
     for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
         std::cout << it->value << ' ';
@@ -189,7 +180,11 @@ int main ( ) {
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';
 
-    std::cout << tree.find ( ) << nl;
+    // std::cout << tree.height ( ) << nl;
+
+    auto compare_foo_value = [] ( auto value_ref, auto node_ref ) noexcept -> bool { return value_ref == node_ref.value; };
+
+    std::cout << tree.find ( 10, compare_foo_value ) << nl;
 
     return EXIT_SUCCESS;
 }
