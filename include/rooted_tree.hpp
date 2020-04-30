@@ -248,7 +248,7 @@ struct rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    nid search ( nid root_ = nid{ root.id } ) const noexcept {
+    nid find ( nid root_ = nid{ root.id } ) const noexcept {
         char_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = 1;
         id_deque queue;
@@ -263,6 +263,7 @@ struct rooted_tree {
                 }
             }
             // Do something here ( with parent ).
+            std::cout << parent.id << ' ';
         }
         return nid{ 0 };
     }
@@ -286,7 +287,7 @@ struct rooted_tree {
                     queue.push_back ( child );
                 }
             }
-            sub_tree.emplace ( visited[ nodes[ parent.id ].up ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
+            sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
         }
         std::swap ( nodes, sub_tree.nodes );
     }
@@ -294,7 +295,7 @@ struct rooted_tree {
     // Remove all but root and ply 1.
     void flatten ( ) {
         nid child = nodes[ root.id ].tail;
-        rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) };
+        rooted_tree sub_tree{ std::move ( nodes[ root.id ] ) }; // old root destroyed.
         for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
             sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
         std::swap ( nodes, sub_tree.nodes );
@@ -446,7 +447,7 @@ struct concurrent_rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    nid search ( nid root_ = nid{ root.id } ) const noexcept {
+    nid find ( nid root_ = nid{ root.id } ) const noexcept {
         char_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = 1;
         id_deque queue;
@@ -484,7 +485,7 @@ struct concurrent_rooted_tree {
                     queue.push_back ( child );
                 }
             }
-            sub_tree.emplace ( visited[ nodes[ parent.id ].up ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
+            sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
         }
         std::swap ( nodes, sub_tree.nodes );
     }
