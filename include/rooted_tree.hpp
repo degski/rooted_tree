@@ -277,7 +277,7 @@ struct rooted_tree {
     template<typename Function, typename Value>
     nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
-        size_type depth = 0, count;
+        size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( count-- ) {
                 nid parent = pop ( queue );
@@ -287,7 +287,7 @@ struct rooted_tree {
                     return parent;
             }
             if ( max_depth_ )
-                if ( max_depth_ == ++depth )
+                if ( max_depth_ == depth++ )
                     break;
         }
         return nid{ 0 };
@@ -489,7 +489,7 @@ struct concurrent_rooted_tree {
     template<typename Function, typename Value>
     nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
-        size_type depth = 0, count;
+        size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( count-- ) {
                 nid parent = pop ( queue );
@@ -499,7 +499,7 @@ struct concurrent_rooted_tree {
                     return parent;
             }
             if ( max_depth_ )
-                if ( max_depth_ == ++depth )
+                if ( max_depth_ == depth++ )
                     break;
         }
         return nid{ 0 };
