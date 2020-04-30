@@ -325,7 +325,6 @@ struct rooted_tree {
         if ( max_depth_ )
             sub ( max_depth_, root );
     }
-    void sub ( ) = delete;
 
     data_vector nodes;
 
@@ -545,7 +544,6 @@ struct concurrent_rooted_tree {
         if ( max_depth_ )
             sub ( max_depth_, root );
     }
-    void sub ( ) = delete;
 
     data_vector nodes;
 
