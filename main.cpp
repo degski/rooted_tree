@@ -175,7 +175,7 @@ int main ( ) {
     std::cout << nl;
     */
 
-    // tree.reroot ( n2 );
+    tree.sub ( 0, n2 );
 
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';

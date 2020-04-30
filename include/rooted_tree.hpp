@@ -73,11 +73,7 @@ struct nid {
 
     int id;
 
-    private:
-    friend struct crt_hook;
     nid ( ) noexcept {} // id uninitialized.
-
-    public:
     constexpr explicit nid ( int && value_ ) noexcept : id{ std::move ( value_ ) } {}
     constexpr explicit nid ( int const & value_ ) noexcept : id{ value_ } {}
 
@@ -295,34 +291,40 @@ struct rooted_tree {
 
     // Make root_ (must exist) the new root of the tree
     // and discard the rest of the tree.
-    void reroot ( nid root_ ) {
+    void sub ( size_type max_depth_, nid root_ ) {
         assert ( root_.is_valid ( ) );
         std::remove_reference_t<decltype ( *this )> sub_tree;
         id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
         id_deque queue ( 1, root_ );
         nid sub_tree_size{ 2 };
-        while ( queue.size ( ) ) {
-            nid parent = pop ( queue );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = sub_tree_size++;
-                    queue.push_back ( child );
+        size_type depth = 1, count;
+        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+            while ( count-- ) {
+                nid parent = pop ( queue );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
+                    if ( visited[ child.id ].is_invalid ( ) ) {
+                        visited[ child.id ] = sub_tree_size++;
+                        queue.push_back ( child );
+                    }
                 }
+                sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
             }
-            sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
+            if ( max_depth_ )
+                if ( max_depth_ == depth++ )
+                    break;
         }
         std::swap ( nodes, sub_tree.nodes );
     }
-
-    // Remove all but root and ply 1.
-    void flatten ( ) {
-        nid child = nodes[ root.id ].tail;
-        std::remove_reference_t<decltype ( *this )> sub_tree{ std::move ( nodes[ root.id ] ) }; // old root destroyed.
-        for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
-            sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
-        std::swap ( nodes, sub_tree.nodes );
+    void sub ( nid node_ ) {
+        if ( root != node_ )
+            sub ( 0, node_ );
     }
+    void sub ( size_type max_depth_ ) {
+        if ( max_depth_ )
+            sub ( max_depth_, root );
+    }
+    void sub ( ) = delete;
 
     data_vector nodes;
 
@@ -508,34 +510,40 @@ struct concurrent_rooted_tree {
 
     // Make root_ (must exist) the new root of the tree
     // and discard the rest of the tree.
-    void reroot ( nid root_ ) {
+    void sub ( size_type max_depth_, nid root_ ) {
         assert ( root_.is_valid ( ) );
         std::remove_reference_t<decltype ( *this )> sub_tree;
         id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
         id_deque queue ( 1, root_ );
         nid sub_tree_size{ 2 };
-        while ( queue.size ( ) ) {
-            nid parent = pop ( queue );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = sub_tree_size++;
-                    queue.push_back ( child );
+        size_type depth = 1, count;
+        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+            while ( count-- ) {
+                nid parent = pop ( queue );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
+                    if ( visited[ child.id ].is_invalid ( ) ) {
+                        visited[ child.id ] = sub_tree_size++;
+                        queue.push_back ( child );
+                    }
                 }
+                sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
             }
-            sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ], std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
+            if ( max_depth_ )
+                if ( max_depth_ == depth++ )
+                    break;
         }
         std::swap ( nodes, sub_tree.nodes );
     }
-
-    // Remove all but root and ply 1.
-    void flatten ( ) {
-        nid child = nodes[ root.id ].tail;
-        std::remove_reference_t<decltype ( *this )> sub_tree{ std::move ( nodes[ root.id ] ) }; // old root destroyed.
-        for ( ; child.is_valid ( ); child = nodes[ child.id ].prev )
-            sub_tree.emplace ( root, std::move ( nodes[ child.id ] ) );
-        std::swap ( nodes, sub_tree.nodes );
+    void sub ( nid node_ ) {
+        if ( root != node_ )
+            sub ( 0, node_ );
     }
+    void sub ( size_type max_depth_ ) {
+        if ( max_depth_ )
+            sub ( max_depth_, root );
+    }
+    void sub ( ) = delete;
 
     data_vector nodes;
 
