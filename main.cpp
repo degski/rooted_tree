@@ -76,16 +76,16 @@ namespace Rng {
 sax::Rng & rng = Rng::generator ( );
 
 template<typename Hook>
-struct foo : Hook {
+struct Foo : Hook {
     int value = 0;
-    foo ( ) noexcept : Hook ( ) {}
-    foo ( foo const & foo_ ) noexcept : Hook ( ), value{ foo_.value } {}
-    explicit foo ( int const & i_ ) noexcept : Hook ( ), value{ i_ } {}
-    explicit foo ( int && i_ ) noexcept : Hook ( ), value{ std::move ( i_ ) } {}
+    Foo ( ) noexcept : Hook ( ) {}
+    Foo ( Foo const & foo_ ) noexcept : Hook ( ), value{ foo_.value } {}
+    explicit Foo ( int const & i_ ) noexcept : Hook ( ), value{ i_ } {}
+    explicit Foo ( int && i_ ) noexcept : Hook ( ), value{ std::move ( i_ ) } {}
 };
 
-using ConcurrentTree = sax::concurrent_rooted_tree<foo<sax::concurrent_rooted_tree_hook>>;
-using SequentailTree = sax::rooted_tree<foo<sax::rooted_tree_hook>>;
+using ConcurrentTree = sax::concurrent_rooted_tree<Foo<sax::concurrent_rooted_tree_hook>>;
+using SequentailTree = sax::rooted_tree<Foo<sax::rooted_tree_hook>>;
 
 template<typename Tree>
 void add_nodes ( Tree & tree_, int n_ ) {
