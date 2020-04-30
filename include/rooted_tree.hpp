@@ -280,7 +280,7 @@ struct rooted_tree {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
-                if ( compare_ ( v_, nodes[ parent.id ] ) )
+                if ( compare_ ( nodes[ parent.id ], v_ ) )
                     return parent;
             }
             if ( max_depth_ )
@@ -489,7 +489,7 @@ struct concurrent_rooted_tree {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
-                if ( compare_ ( v_, nodes[ parent.id ] ) )
+                if ( compare_ ( nodes[ parent.id ], v_ ) )
                     return parent;
             }
             if ( max_depth_ )
