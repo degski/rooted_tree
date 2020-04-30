@@ -55,6 +55,16 @@
 
 namespace sax {
 
+namespace detail { // keep the macros out of the code (as it's ugly).
+#ifdef _DEBUG
+using is_debug   = std::true_type;
+using is_release = std::false_type;
+#else
+using is_debug   = std::false_type;
+using is_release = std::true_type;
+#endif
+} // namespace detail
+
 struct nid {
 
     int id;
@@ -73,7 +83,8 @@ struct nid {
     [[nodiscard]] bool is_valid ( ) const noexcept { return id; }
     [[nodiscard]] bool is_invalid ( ) const noexcept { return not is_valid ( ); }
 
-    [[nodiscard]] nid operator++ ( ) { return nid{ ++id }; }
+    [[nodiscard]] nid operator++ ( ) noexcept { return nid{ ++id }; }
+    [[nodiscard]] nid operator++ ( int ) noexcept { return nid{ id++ }; }
 
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, nid const id_ ) noexcept {
@@ -101,9 +112,11 @@ struct nid {
 
     static constexpr int nid_invalid_v = 0;
 };
-
-using id_vector = std::vector<nid>;
-using id_deque  = boost::container::deque<nid>;
+template<typename T>
+using zeroing_vector = std::vector<T, tbb::zero_allocator<T>>;
+using char_vector    = zeroing_vector<char>;
+using id_vector      = zeroing_vector<nid>;
+using id_deque       = boost::container::deque<nid, tbb::tbb_allocator<nid>>;
 
 inline constexpr int reserve_size = 1'024;
 
@@ -236,7 +249,7 @@ struct rooted_tree {
     };
 
     nid search ( nid root_ = nid{ root.id } ) const noexcept {
-        std::vector<char> visited ( nodes.size ( ), 0 );
+        char_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = 1;
         id_deque queue;
         queue.push_back ( root_ );
@@ -259,17 +272,17 @@ struct rooted_tree {
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
         rooted_tree sub_tree;
-        id_vector visited ( nodes.size ( ), nid{ 0 } );
+        id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
         id_deque queue;
         queue.push_back ( root_ );
-        nid node = sub_tree.root;
+        nid sub_tree_size{ 2 };
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = ++node;
+                    visited[ child.id ] = sub_tree_size++;
                     queue.push_back ( child );
                 }
             }
@@ -434,7 +447,7 @@ struct concurrent_rooted_tree {
     };
 
     nid search ( nid root_ = nid{ root.id } ) const noexcept {
-        std::vector<char> visited ( nodes.size ( ), 0 );
+        char_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = 1;
         id_deque queue;
         queue.push_back ( root_ );
@@ -457,17 +470,17 @@ struct concurrent_rooted_tree {
     void reroot ( nid root_ ) {
         assert ( root_.is_valid ( ) );
         concurrent_rooted_tree sub_tree;
-        id_vector visited ( nodes.size ( ), nid{ 0 } );
+        id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
         id_deque queue;
         queue.push_back ( root_ );
-        nid node = sub_tree.root;
+        nid sub_tree_size{ 2 };
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = ++node;
+                    visited[ child.id ] = sub_tree_size++;
                     queue.push_back ( child );
                 }
             }
