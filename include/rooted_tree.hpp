@@ -118,11 +118,10 @@ struct nid {
 };
 template<typename T>
 using zeroing_vector = std::vector<T, tbb::zero_allocator<T>>;
-using char_vector    = zeroing_vector<char>;
 using id_vector      = zeroing_vector<nid>;
 using id_deque       = boost::container::deque<nid, tbb::tbb_allocator<nid>>;
 
-nid pop ( id_deque & d_ ) noexcept {
+[[nodiscard]] nid pop ( id_deque & d_ ) noexcept {
     nid v = d_.front ( );
     d_.pop_front ( );
     return v;
