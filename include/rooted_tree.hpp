@@ -53,10 +53,6 @@
 
 #include <cereal/cereal.hpp>
 
-#define ever                                                                                                                       \
-    ;                                                                                                                              \
-    ;
-
 namespace sax {
 
 namespace detail { // keep the macros out of the code (as it's ugly).
@@ -551,5 +547,3 @@ struct concurrent_rooted_tree {
 };
 
 } // namespace sax
-
-#undef ever
