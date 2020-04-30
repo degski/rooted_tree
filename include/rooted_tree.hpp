@@ -240,9 +240,7 @@ struct rooted_tree_base {
         nid node;
 
         public:
-        out_iterator ( rooted_tree_base & tree_, nid const node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
-
-        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        out_iterator ( rooted_tree_base & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
 
         [[maybe_unused]] out_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].prev;
@@ -250,9 +248,9 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
-
         [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
 
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
@@ -264,10 +262,7 @@ struct rooted_tree_base {
         nid node;
 
         public:
-        const_out_iterator ( rooted_tree_base const & tree_, nid const node_ ) noexcept :
-            tree{ tree_ }, node{ tree[ node_.id ].tail } {}
-
-        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        const_out_iterator ( rooted_tree_base const & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
 
         [[maybe_unused]] const_out_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].prev;
@@ -275,9 +270,9 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
-
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
 
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
