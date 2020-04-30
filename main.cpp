@@ -189,7 +189,7 @@ int main ( ) {
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';
 
-    std::cout << tree.height ( ) << nl;
+    std::cout << tree.find ( ) << nl;
 
     return EXIT_SUCCESS;
 }

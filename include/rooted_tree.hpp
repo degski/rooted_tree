@@ -53,6 +53,10 @@
 
 #include <cereal/cereal.hpp>
 
+#define ever                                                                                                                       \
+    ;                                                                                                                              \
+    ;
+
 namespace sax {
 
 namespace detail { // keep the macros out of the code (as it's ugly).
@@ -117,6 +121,12 @@ using zeroing_vector = std::vector<T, tbb::zero_allocator<T>>;
 using char_vector    = zeroing_vector<char>;
 using id_vector      = zeroing_vector<nid>;
 using id_deque       = boost::container::deque<nid, tbb::tbb_allocator<nid>>;
+
+nid pop ( id_deque & d_ ) noexcept {
+    nid v = d_.front ( );
+    d_.pop_front ( );
+    return v;
+}
 
 inline constexpr int reserve_size = 1'024;
 
@@ -248,44 +258,26 @@ struct rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    size_type height ( ) const {
-        char_vector visited ( nodes.size ( ) );
-        visited[ root.id ] = 1;
-        id_deque queue;
-        queue.push_back ( root );
-        size_type hgt = 0;
-        while ( true ) {
-            size_type cnt = static_cast<size_type> ( queue.size ( ) );
-            if ( not cnt )
-                return hgt;
-            hgt += 1;
+    size_type height ( nid root_ = nid{ root.id } ) const {
+        id_deque queue ( 1, root_ );
+        size_type hgt = 0, cnt;
+        while ( ( cnt = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( cnt-- ) {
-                nid parent = queue.front ( );
-                queue.pop_front ( );
-                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                    if ( not visited[ child.id ] ) {
-                        visited[ child.id ] = 1;
-                        queue.push_back ( child );
-                    }
-                }
+                nid parent = pop ( queue );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                    queue.push_back ( child );
             }
+            hgt += 1;
         }
+        return hgt;
     }
 
     nid find ( nid root_ = nid{ root.id } ) const noexcept {
-        char_vector visited ( nodes.size ( ) );
-        visited[ root_.id ] = 1;
-        id_deque queue;
-        queue.push_back ( root_ );
+        id_deque queue ( 1, root_ );
         while ( queue.size ( ) ) {
-            nid parent = queue.front ( );
-            queue.pop_front ( );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                if ( not visited[ child.id ] ) {
-                    visited[ child.id ] = 1;
-                    queue.push_back ( child );
-                }
-            }
+            nid parent = pop ( queue );
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                queue.push_back ( child );
             // Do something here ( with parent ).
             std::cout << parent << ' ';
         }
@@ -300,12 +292,10 @@ struct rooted_tree {
         rooted_tree sub_tree;
         id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
-        id_deque queue;
-        queue.push_back ( root_ );
+        id_deque queue ( 1, root_ );
         nid sub_tree_size{ 2 };
         while ( queue.size ( ) ) {
-            nid parent = queue.front ( );
-            queue.pop_front ( );
+            nid parent = pop ( queue );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
                     visited[ child.id ] = sub_tree_size++;
@@ -329,7 +319,7 @@ struct rooted_tree {
     data_vector nodes;
 
     static constexpr nid root = nid{ 1 };
-};
+}; // namespace sax
 
 struct crt_hook { // 16
 
@@ -472,46 +462,30 @@ struct concurrent_rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    size_type height ( ) const {
-        char_vector visited ( nodes.size ( ) );
-        visited[ root.id ] = 1;
-        id_deque queue;
-        queue.push_back ( root );
-        size_type hgt = 0;
-        while ( true ) {
-            size_type cnt = static_cast<size_type> ( queue.size ( ) );
-            if ( not cnt )
-                return hgt;
-            hgt += 1;
+    size_type height ( nid root_ = nid{ root.id } ) const {
+        id_deque queue ( 1, root_ );
+        size_type hgt = 0, cnt;
+        while ( ( cnt = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( cnt-- ) {
-                nid parent = queue.front ( );
-                queue.pop_front ( );
-                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                    if ( not visited[ child.id ] ) {
-                        visited[ child.id ] = 1;
-                        queue.push_back ( child );
-                    }
-                }
+                nid parent = pop ( queue );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                    queue.push_back ( child );
             }
+            hgt += 1;
         }
+        return hgt;
     }
 
     nid find ( nid root_ = nid{ root.id } ) const noexcept {
-        char_vector visited ( nodes.size ( ) );
-        visited[ root_.id ] = 1;
-        id_deque queue;
-        queue.push_back ( root_ );
+        id_deque queue ( 1, root_ );
         while ( queue.size ( ) ) {
-            nid parent = queue.front ( );
-            queue.pop_front ( );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                if ( not visited[ child.id ] ) {
-                    visited[ child.id ] = 1;
-                    queue.push_back ( child );
-                }
-            }
+            nid parent = pop ( queue );
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+                queue.push_back ( child );
             // Do something here ( with parent ).
+            std::cout << parent << ' ';
         }
+        std::cout << '\n';
         return nid{ 0 };
     }
 
@@ -522,12 +496,10 @@ struct concurrent_rooted_tree {
         concurrent_rooted_tree sub_tree;
         id_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = sub_tree.root;
-        id_deque queue;
-        queue.push_back ( root_ );
+        id_deque queue ( 1, root_ );
         nid sub_tree_size{ 2 };
         while ( queue.size ( ) ) {
-            nid parent = queue.front ( );
-            queue.pop_front ( );
+            nid parent = pop ( queue );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
                     visited[ child.id ] = sub_tree_size++;
@@ -554,3 +526,5 @@ struct concurrent_rooted_tree {
 };
 
 } // namespace sax
+
+#undef ever
