@@ -271,8 +271,8 @@ struct rooted_tree {
         return hgt;
     }
 
-    template<typename Value, typename Function>
-    nid find ( Value const & v_, Function compare_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
+    template<typename Function, typename Value>
+    nid find ( Function compare_, Value const & v_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
         size_type depth = 0, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
@@ -480,8 +480,8 @@ struct concurrent_rooted_tree {
         return hgt;
     }
 
-    template<typename Value, typename Function>
-    nid find ( Value const & v_, Function compare_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
+    template<typename Function, typename Value>
+    nid find ( Function compare_, Value const & v_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
         size_type depth = 0, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {

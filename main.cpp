@@ -184,7 +184,7 @@ int main ( ) {
 
     auto compare_foo_value = [] ( auto node_ref, auto value_ref ) noexcept -> bool { return node_ref.value == value_ref; };
 
-    std::cout << tree.find ( 10, compare_foo_value ) << nl;
+    std::cout << tree.find ( compare_foo_value, 10 ) << nl;
 
     return EXIT_SUCCESS;
 }
