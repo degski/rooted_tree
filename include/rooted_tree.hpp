@@ -78,8 +78,8 @@ struct nid {
     nid ( ) noexcept {} // id uninitialized.
 
     public:
-    constexpr explicit nid ( int && v_ ) noexcept : id{ std::move ( v_ ) } {}
-    constexpr explicit nid ( int const & v_ ) noexcept : id{ v_ } {}
+    constexpr explicit nid ( int && value_ ) noexcept : id{ std::move ( value_ ) } {}
+    constexpr explicit nid ( int const & value_ ) noexcept : id{ value_ } {}
 
     [[nodiscard]] bool operator== ( nid const rhs_ ) const noexcept { return id == rhs_.id; }
     [[nodiscard]] bool operator!= ( nid const rhs_ ) const noexcept { return id != rhs_.id; }
@@ -271,8 +271,11 @@ struct rooted_tree {
         return hgt;
     }
 
+    // Apply function to nodes in bfs-fashion, till max_depth_
+    // is reached or till function returns false. Returns the
+    // nid of the node that made function return false.
     template<typename Function, typename Value>
-    nid find ( Function compare_, Value const & v_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
+    nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
         size_type depth = 0, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
@@ -280,7 +283,7 @@ struct rooted_tree {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
-                if ( compare_ ( nodes[ parent.id ], v_ ) )
+                if ( not function_ ( nodes[ parent.id ], value_ ) )
                     return parent;
             }
             if ( max_depth_ )
@@ -480,8 +483,11 @@ struct concurrent_rooted_tree {
         return hgt;
     }
 
+    // Apply function to nodes in bfs-fashion, till max_depth_
+    // is reached or till function returns false. Returns the
+    // nid of the node that made function return false.
     template<typename Function, typename Value>
-    nid find ( Function compare_, Value const & v_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
+    nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
         size_type depth = 0, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
@@ -489,7 +495,7 @@ struct concurrent_rooted_tree {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
-                if ( compare_ ( nodes[ parent.id ], v_ ) )
+                if ( not function_ ( nodes[ parent.id ], value_ ) )
                     return parent;
             }
             if ( max_depth_ )
