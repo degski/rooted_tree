@@ -168,6 +168,8 @@ int main ( ) {
 
     sax::nid n12 = tree.emplace ( n2, 12 );
 
+    sax::nid n13 = tree.emplace ( n12, 13 );
+
     // std::cout << tree.nodes.size ( ) << nl;
 
     /*
@@ -187,9 +189,7 @@ int main ( ) {
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';
 
-    tree.find ( );
-
-    std::cout << nl;
+    std::cout << tree.height ( ) << nl;
 
     return EXIT_SUCCESS;
 }

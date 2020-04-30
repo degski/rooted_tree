@@ -89,7 +89,7 @@ struct nid {
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, nid const id_ ) noexcept {
         if ( nid_invalid_v == id_.id ) {
-            if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::id ) {
+            if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
                 out_ << L'*';
             }
             else {
@@ -248,6 +248,30 @@ struct rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
+    size_type height ( ) const {
+        char_vector visited ( nodes.size ( ) );
+        visited[ root.id ] = 1;
+        id_deque queue;
+        queue.push_back ( root );
+        size_type hgt = 0;
+        while ( true ) {
+            size_type cnt = static_cast<size_type> ( queue.size ( ) );
+            if ( not cnt )
+                return hgt;
+            hgt += 1;
+            while ( cnt-- ) {
+                nid parent = queue.front ( );
+                queue.pop_front ( );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
+                    if ( not visited[ child.id ] ) {
+                        visited[ child.id ] = 1;
+                        queue.push_back ( child );
+                    }
+                }
+            }
+        }
+    }
+
     nid find ( nid root_ = nid{ root.id } ) const noexcept {
         char_vector visited ( nodes.size ( ) );
         visited[ root_.id ] = 1;
@@ -263,8 +287,9 @@ struct rooted_tree {
                 }
             }
             // Do something here ( with parent ).
-            std::cout << parent.id << ' ';
+            std::cout << parent << ' ';
         }
+        std::cout << '\n';
         return nid{ 0 };
     }
 
@@ -446,6 +471,30 @@ struct concurrent_rooted_tree {
 
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
+
+    size_type height ( ) const {
+        char_vector visited ( nodes.size ( ) );
+        visited[ root.id ] = 1;
+        id_deque queue;
+        queue.push_back ( root );
+        size_type hgt = 0;
+        while ( true ) {
+            size_type cnt = static_cast<size_type> ( queue.size ( ) );
+            if ( not cnt )
+                return hgt;
+            hgt += 1;
+            while ( cnt-- ) {
+                nid parent = queue.front ( );
+                queue.pop_front ( );
+                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
+                    if ( not visited[ child.id ] ) {
+                        visited[ child.id ] = 1;
+                        queue.push_back ( child );
+                    }
+                }
+            }
+        }
+    }
 
     nid find ( nid root_ = nid{ root.id } ) const noexcept {
         char_vector visited ( nodes.size ( ) );
