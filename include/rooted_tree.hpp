@@ -321,6 +321,8 @@ struct rooted_tree_base {
     // Make root_ (must exist) the new root of the tree
     // and discard the rest of the tree.
     void sub ( size_type max_depth_, nid root_ ) {
+        if ( not max_depth_ and root == root_ )
+            return;
         assert ( root_.is_valid ( ) );
         rooted_tree_base sub_tree;
         id_vector visited ( nodes.size ( ) );
@@ -346,14 +348,8 @@ struct rooted_tree_base {
         }
         std::swap ( nodes, sub_tree.nodes );
     }
-    void sub ( nid node_ ) {
-        if ( root != node_ )
-            sub ( 0, node_ );
-    }
-    void sub ( size_type max_depth_ ) {
-        if ( max_depth_ )
-            sub ( max_depth_, root );
-    }
+    void sub ( nid node_ ) { sub ( 0, node_ ); }
+    void sub ( size_type max_depth_ ) { sub ( max_depth_, root ); }
 
     data_vector nodes;
 
