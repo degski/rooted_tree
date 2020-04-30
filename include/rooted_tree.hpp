@@ -273,8 +273,8 @@ struct rooted_tree {
     }
 
     // Apply function to nodes in bfs-fashion, till max_depth_
-    // is reached or till function returns false. Returns the
-    // nid of the node that made function return false.
+    // is reached or till function returns true. Returns the
+    // nid of the node that made function return true.
     template<typename Function, typename Value>
     nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
@@ -284,7 +284,7 @@ struct rooted_tree {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
-                if ( not function_ ( nodes[ parent.id ], value_ ) )
+                if ( function_ ( nodes[ parent.id ], value_ ) )
                     return parent;
             }
             if ( max_depth_ )
@@ -486,8 +486,8 @@ struct concurrent_rooted_tree {
     }
 
     // Apply function to nodes in bfs-fashion, till max_depth_
-    // is reached or till function returns false. Returns the
-    // nid of the node that made function return false.
+    // is reached or till function returns true. Returns the
+    // nid of the node that made function return true.
     template<typename Function, typename Value>
     nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
@@ -497,7 +497,7 @@ struct concurrent_rooted_tree {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
-                if ( not function_ ( nodes[ parent.id ], value_ ) )
+                if ( function_ ( nodes[ parent.id ], value_ ) )
                     return parent;
             }
             if ( max_depth_ )

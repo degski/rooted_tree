@@ -182,7 +182,7 @@ int main ( ) {
 
     std::cout << tree.height ( ) << nl;
 
-    auto compare_foo_value = [] ( auto node_ref, auto value_ref ) noexcept -> bool { return node_ref.value != value_ref; };
+    auto compare_foo_value = [] ( auto node_ref, auto value_ref ) noexcept -> bool { return node_ref.value == value_ref; };
 
     std::cout << tree.apply ( compare_foo_value, 10 ) << nl;
 
