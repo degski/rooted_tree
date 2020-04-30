@@ -202,7 +202,7 @@ struct rooted_tree {
     template<typename... Args>
     [[maybe_unused]] nid emplace_root ( Args &&... args_ ) noexcept {
         assert ( typename data_vector::size_type{ 1 } == nodes.size ( ) );
-        return emplace ( nid{ 0 }, std::forward<Args> ( args_ )... );
+        return emplace ( invalid, std::forward<Args> ( args_ )... );
     }
 
     class out_iterator {
@@ -287,7 +287,7 @@ struct rooted_tree {
                 if ( max_depth_ == depth++ )
                     break;
         }
-        return nid{ 0 };
+        return invalid;
     }
 
     // Make root_ (must exist) the new root of the tree
@@ -329,7 +329,7 @@ struct rooted_tree {
 
     data_vector nodes;
 
-    static constexpr nid root = nid{ 1 };
+    static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 }; // namespace sax
 
 struct crt_hook { // 16
@@ -421,7 +421,7 @@ struct concurrent_rooted_tree {
     template<typename... Args>
     [[maybe_unused]] nid emplace_root ( Args &&... args_ ) noexcept {
         assert ( typename data_vector::size_type{ 1 } == nodes.size ( ) );
-        return emplace ( nid{ 0 }, std::forward<Args> ( args_ )... );
+        return emplace ( invalid, std::forward<Args> ( args_ )... );
     }
 
     class out_iterator {
@@ -507,7 +507,7 @@ struct concurrent_rooted_tree {
                 if ( max_depth_ == depth++ )
                     break;
         }
-        return nid{ 0 };
+        return invalid;
     }
 
     // Make root_ (must exist) the new root of the tree
@@ -549,7 +549,7 @@ struct concurrent_rooted_tree {
 
     data_vector nodes;
 
-    static constexpr nid root = nid{ 1 };
+    static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 };
 
 } // namespace sax
