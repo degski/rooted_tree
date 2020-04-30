@@ -23,12 +23,18 @@
 
 #pragma once
 
+#define USE_IO true
+#define USE_CEREAL false
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 
-#include <iostream>
+#if USE_IO
+#    include <iostream>
+#endif
+
 #include <utility>
 #include <vector>
 
@@ -51,10 +57,16 @@
 
 #include <boost/container/deque.hpp>
 
-#include <cereal/cereal.hpp>
+#if USE_CEREAL
+#    include <cereal/cereal.hpp>
+#    include <cereal/types/vector.hpp>
+// https://github.com/degski/cereal/blob/master/include/cereal/types/tbb_concurrent_vector.hpp
+#    include <cereal/types/tbb_concurrent_vector.hpp>
+#endif
 
 namespace sax {
 
+// Node-Id.
 struct nid {
 
     int id;
@@ -72,6 +84,7 @@ struct nid {
     [[nodiscard]] nid operator++ ( ) noexcept { return nid{ ++id }; }
     [[nodiscard]] nid operator++ ( int ) noexcept { return nid{ id++ }; }
 
+#if USE_IO
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, nid const id_ ) noexcept {
         if ( nid_invalid_v == id_.id ) {
@@ -83,20 +96,22 @@ struct nid {
             }
         }
         else {
-            out_ << static_cast<std::uint64_t> ( id_.id );
+            out_ << id_.id;
         }
         return out_;
     }
+#endif
 
+    static constexpr int nid_invalid_v = 0;
+
+#if USE_CEREAL
     private:
     friend class cereal::access;
-
     template<class Archive>
     inline void serialize ( Archive & ar_ ) {
         ar_ ( id );
     }
-
-    static constexpr int nid_invalid_v = 0;
+#endif
 };
 
 namespace detail {
@@ -114,30 +129,41 @@ using id_deque       = boost::container::deque<nid, tbb::tbb_allocator<nid>>;
 
 inline constexpr int reserve_size = 1'024;
 
+// Hooks.
+
 template<bool>
-struct rooted_tree_base_hook {
-    template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const node_ ) noexcept {
-        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::id ) {
-            out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.size << L'>';
-        }
-        else {
-            out_ << '<' << node_.up << ' ' << node_.prev << ' ' << node_.tail << ' ' << node_.size << '>';
-        }
-        return out_;
-    }
-};
+struct rooted_tree_base_hook {};
+
 template<>
-struct rooted_tree_base_hook<false> { // 16
+struct rooted_tree_base_hook<false> { // 16 bytes.
     nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
-    int size = 0;
+    int size = 0; // fan-out.
+
+#if USE_CEREAL
+    private:
+    friend class cereal::access;
+    template<class Archive>
+    inline void serialize ( Archive & ar_ ) {
+        ar_ ( up, prev, tail, size );
+    }
+#endif
 };
+
 template<>
-struct rooted_tree_base_hook<true> { // 16
+struct rooted_tree_base_hook<true> { // 16 bytes.
     nid up, prev, tail;
     short size;
     tbb::spin_mutex mutex;
     tbb::atomic<char const> done = 1; // Indicates the node is constructed (allocated with zeroed memory).
+
+#if USE_CEREAL
+    private:
+    friend class cereal::access;
+    template<class Archive>
+    inline void serialize ( Archive & ar_ ) {
+        ar_ ( up, prev, tail, size );
+    }
+#endif
 };
 
 template<typename Node, bool Concurrent = false>
@@ -290,9 +316,8 @@ struct rooted_tree_base {
         return depth;
     }
 
-    // Apply function to nodes in bfs-fashion, till max_depth_
-    // is reached or till function returns true. Returns the
-    // nid of the node that made function return true.
+    // Apply function to nodes in bfs-fashion, till max_depth_ is reached or till function returns true.
+    // Returns the nid of the node that made function return true.
     template<typename Function, typename Value>
     [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
                               nid root_ = nid{ root.id } ) const {
@@ -349,6 +374,15 @@ struct rooted_tree_base {
     data_vector nodes;
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
+
+#if USE_CEREAL
+    private:
+    friend class cereal::access;
+    template<class Archive>
+    inline void serialize ( Archive & ar_ ) {
+        ar_ ( nodes );
+    }
+#endif
 };
 
 } // namespace detail
@@ -362,3 +396,6 @@ using concurrent_rooted_tree      = detail::rooted_tree_base<Node, true>;
 using concurrent_rooted_tree_hook = detail::rooted_tree_base_hook<true>;
 
 } // namespace sax
+
+#undef USE_CEREAL
+#undef USE_IO
