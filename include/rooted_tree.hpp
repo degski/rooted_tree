@@ -253,25 +253,26 @@ struct rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    size_type height ( nid root_ = nid{ root.id } ) const {
+    [[nodiscard]] size_type height ( nid root_ = nid{ root.id } ) const {
         id_deque queue ( 1, root_ );
-        size_type hgt = 0, cnt;
-        while ( ( cnt = static_cast<size_type> ( queue.size ( ) ) ) ) {
-            while ( cnt-- ) {
+        size_type depth = 0, count;
+        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+            while ( count-- ) {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
             }
-            hgt += 1;
+            depth += 1;
         }
-        return hgt;
+        return depth;
     }
 
     // Apply function to nodes in bfs-fashion, till max_depth_
     // is reached or till function returns true. Returns the
     // nid of the node that made function return true.
     template<typename Function, typename Value>
-    nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
+    [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
+                              nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
@@ -472,25 +473,26 @@ struct concurrent_rooted_tree {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    size_type height ( nid root_ = nid{ root.id } ) const {
+    [[nodiscard]] size_type height ( nid root_ = nid{ root.id } ) const {
         id_deque queue ( 1, root_ );
-        size_type hgt = 0, cnt;
-        while ( ( cnt = static_cast<size_type> ( queue.size ( ) ) ) ) {
-            while ( cnt-- ) {
+        size_type depth = 0, count;
+        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+            while ( count-- ) {
                 nid parent = pop ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
             }
-            hgt += 1;
+            depth += 1;
         }
-        return hgt;
+        return depth;
     }
 
     // Apply function to nodes in bfs-fashion, till max_depth_
     // is reached or till function returns true. Returns the
     // nid of the node that made function return true.
     template<typename Function, typename Value>
-    nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = nid{ root.id } ) const noexcept {
+    [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
+                              nid root_ = nid{ root.id } ) const noexcept {
         id_deque queue ( 1, root_ );
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
