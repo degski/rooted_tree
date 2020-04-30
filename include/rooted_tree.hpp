@@ -73,6 +73,8 @@ struct nid {
     [[nodiscard]] bool is_valid ( ) const noexcept { return id; }
     [[nodiscard]] bool is_invalid ( ) const noexcept { return not is_valid ( ); }
 
+    [[nodiscard]] nid operator++ ( ) { return nid{ ++id }; }
+
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, nid const id_ ) noexcept {
         if ( nid_invalid_v == id_.id ) {
@@ -241,13 +243,13 @@ struct rooted_tree {
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( not visited[ child.id ] ) {
-                    // Do something here.
                     visited[ child.id ] = 1;
-                    if ( nodes[ child.id ].size )
-                        queue.push_back ( child );
+                    queue.push_back ( child );
                 }
+            }
+            // Do something here ( with parent ).
         }
         return nid{ 0 };
     }
@@ -261,13 +263,13 @@ struct rooted_tree {
         visited[ root_.id ] = sub_tree.root;
         id_deque queue;
         queue.push_back ( root_ );
-        int node_cnt = sub_tree.root.id;
+        nid node = sub_tree.root;
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = nid{ ++node_cnt };
+                    visited[ child.id ] = ++node;
                     queue.push_back ( child );
                 }
             }
@@ -439,13 +441,13 @@ struct concurrent_rooted_tree {
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
-            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
+            for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( not visited[ child.id ] ) {
-                    // Do something here.
                     visited[ child.id ] = 1;
-                    if ( nodes[ child.id ].size )
-                        queue.push_back ( child );
+                    queue.push_back ( child );
                 }
+            }
+            // Do something here ( with parent ).
         }
         return nid{ 0 };
     }
@@ -459,13 +461,13 @@ struct concurrent_rooted_tree {
         visited[ root_.id ] = sub_tree.root;
         id_deque queue;
         queue.push_back ( root_ );
-        int node_cnt = sub_tree.root.id;
+        nid node = sub_tree.root;
         while ( queue.size ( ) ) {
             nid parent = queue.front ( );
             queue.pop_front ( );
             for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
                 if ( visited[ child.id ].is_invalid ( ) ) {
-                    visited[ child.id ] = nid{ ++node_cnt };
+                    visited[ child.id ] = ++node;
                     queue.push_back ( child );
                 }
             }
