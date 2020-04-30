@@ -267,6 +267,7 @@ struct rooted_tree {
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
             }
+            hgt += 1;
         }
         return hgt;
     }
@@ -479,6 +480,7 @@ struct concurrent_rooted_tree {
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     queue.push_back ( child );
             }
+            hgt += 1;
         }
         return hgt;
     }

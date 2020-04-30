@@ -180,7 +180,7 @@ int main ( ) {
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';
 
-    // std::cout << tree.height ( ) << nl;
+    std::cout << tree.height ( ) << nl;
 
     auto compare_foo_value = [] ( auto node_ref, auto value_ref ) noexcept -> bool { return node_ref.value != value_ref; };
 
