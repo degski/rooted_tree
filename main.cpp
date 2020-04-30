@@ -84,8 +84,8 @@ struct foo : Hook {
     explicit foo ( int && i_ ) noexcept : Hook ( ), value{ std::move ( i_ ) } {}
 };
 
-using ConcurrentTree = sax::concurrent_rooted_tree<foo<sax::crt_hook>>;
-using SequentailTree = sax::rooted_tree<foo<sax::rt_hook>>;
+using ConcurrentTree = sax::concurrent_rooted_tree<foo<sax::concurrent_rooted_tree_hook>>;
+using SequentailTree = sax::rooted_tree<foo<sax::rooted_tree_hook>>;
 
 template<typename Tree>
 void add_nodes ( Tree & tree_, int n_ ) {
@@ -175,7 +175,7 @@ int main ( ) {
     std::cout << nl;
     */
 
-    tree.sub ( 0, n2 );
+    // tree.sub ( 0, n2 );
 
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';
