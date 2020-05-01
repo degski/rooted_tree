@@ -348,6 +348,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         }
     }
 
+    // Level iterator, it is safe to destroy the node the interator is pointing at.
     class level_iterator {
 
         friend struct rooted_tree_base;
@@ -364,7 +365,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
             count = static_cast<size_type> ( queue.size ( ) );
-            depth = 1 + static_cast<int> ( 0 != count );
+            depth = 1 + static_cast<size_type> ( 0 != count );
         }
 
         [[maybe_unused]] level_iterator & operator++ ( ) noexcept {
@@ -382,11 +383,12 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                 count -= 1;
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
+                return *this;
             }
             else {
                 parent = rooted_tree_base::invalid;
+                return *this;
             }
-            return *this;
         }
 
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ parent.id ]; }
@@ -396,6 +398,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
     };
 
+    // Level iterator, it is safe to destroy the node the interator is pointing at.
     class const_level_iterator {
 
         friend struct rooted_tree_base;
@@ -414,7 +417,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
             count = static_cast<size_type> ( queue.size ( ) );
-            depth = 1 + static_cast<int> ( 0 != count );
+            depth = 1 + static_cast<size_type> ( 0 != count );
         }
 
         [[maybe_unused]] const_level_iterator & operator++ ( ) noexcept {
@@ -432,11 +435,12 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                 count -= 1;
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
+                return *this;
             }
             else {
                 parent = rooted_tree_base::invalid;
+                return *this;
             }
-            return *this;
         }
 
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ parent.id ]; }
@@ -549,82 +553,6 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         }
         return depth;
     }
-
-    // Apply function to nodes while level-traversing till max_depth_ is reached or till function returns
-    // true. 'apply()' can be used to find some node (possibly changing it), or to apply some function to
-    // all nodes (function always returns false) till max_depth (never iff 0) is reached. Returns the nid
-    // of the node that made function return true.
-    template<typename Function, typename Value>
-    [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = root ) const {
-        id_deque queue ( 1, root_ );
-        size_type depth = 1, count;
-        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
-            while ( count-- ) {
-                nid parent = de ( queue );
-                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                    en ( queue, child );
-                if ( function_ ( nodes[ parent.id ], value_ ) )
-                    return parent;
-            }
-            if ( max_depth_ > 1 )
-                if ( max_depth_ == depth++ )
-                    break;
-        }
-        return invalid;
-    }
-
-    private:
-    // Make a sub-tree.
-    [[nodiscard]] rooted_tree_base make_sub_impl ( size_type max_depth_, nid root_ ) {
-        assert ( root_.is_valid ( ) );
-        rooted_tree_base tree;
-        id_vector index ( nodes.size ( ) );
-        index[ root_.id ] = tree.root;
-        id_deque queue ( 1, root_ );
-        nid sub_tree_size{ 2 };
-        size_type depth = 1, count;
-        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
-            while ( count-- ) {
-                nid parent = de ( queue );
-                for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                    if ( index[ child.id ].is_invalid ( ) ) {
-                        index[ child.id ] = sub_tree_size++;
-                        en ( queue, child );
-                    }
-                }
-                tree.insert ( index[ nodes[ parent.id ].up.id ],
-                              std::move ( nodes[ parent.id ] ) ); // destructive.
-            }
-            if ( max_depth_ > 1 )
-                if ( max_depth_ == depth++ )
-                    break;
-        }
-        return tree;
-    }
-
-    public:
-    // Make a sub-tree.
-    [[nodiscard]] rooted_tree_base make_sub ( size_type max_depth_, nid root_ ) {
-        if ( not max_depth_ and root == root_ )
-            return;
-        return make_sub_impl ( max_depth_, root );
-    }
-    // Make a sub-tree.
-    [[nodiscard]] rooted_tree_base make_sub ( nid node_ ) { return make_sub ( 0, node_ ); }
-    // Make a sub-tree.
-    [[nodiscard]] rooted_tree_base make_sub ( size_type max_depth_ ) { return make_sub ( max_depth_, root ); }
-
-    // Replace tree with sub-tree.
-    void sub ( size_type max_depth_, nid root_ ) {
-        if ( not max_depth_ and root == root_ )
-            return;
-        rooted_tree_base tree = make_sub_impl ( max_depth_, root_ );
-        std::swap ( nodes, tree.nodes );
-    }
-    // Replace tree with sub-tree.
-    void sub ( nid node_ ) { sub ( 0, node_ ); }
-    // Replace tree with sub-tree.
-    void sub ( size_type max_depth_ ) { sub ( max_depth_, root ); }
 
     node_vector nodes;
 
