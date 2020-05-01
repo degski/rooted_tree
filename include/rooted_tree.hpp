@@ -184,8 +184,9 @@ struct rooted_tree_base_hook<true> { // 16 bytes.
 #endif
 };
 
+// The tree has 1 (one, and only one,) root.
 template<typename Node, bool Concurrent = false>
-struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
+struct rooted_tree_base {
 
     using hook = rooted_tree_base_hook<Concurrent>;
 
@@ -269,8 +270,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
 
     void reserve ( size_type c_ ) { nodes.reserve ( static_cast<typename node_vector::size_type> ( c_ ) ); }
 
-    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as
-    // parameter to source_ (once).
+    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
         if constexpr ( Concurrent ) {
             iterator target = nodes.push_back ( std::move ( node_ ) );
@@ -295,8 +295,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
             return id;
         }
     }
-    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as
-    // parameter to source_ (once).
+    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
         if constexpr ( Concurrent ) {
             iterator target = nodes.push_back ( node_ );
@@ -322,8 +321,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         }
     }
 
-    // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as
-    // parameter to source_ (once).
+    // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
         if constexpr ( Concurrent ) {
@@ -349,7 +347,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         }
     }
 
-    // It is safe to destroy the node the interator is pointing at. level_iterator is a (rather) heavy object.
+    // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
     class level_iterator {
 
         friend struct rooted_tree_base;
@@ -399,7 +397,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
     };
 
-    // It is safe to destroy the node the interator is pointing at. level_iterator is a (rather) heavy object.
+    // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
     class const_level_iterator {
 
         friend struct rooted_tree_base;
