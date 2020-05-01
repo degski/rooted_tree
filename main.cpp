@@ -57,8 +57,7 @@ namespace ThreadID {
 } // namespace ThreadID
 
 namespace Rng {
-// A global instance of a C++ implementation
-// of Chris Doty-Humphrey's Small Fast Chaotic Prng.
+// A global instance of a C++ implementation of Chris Doty-Humphrey's Small Fast Chaotic Prng.
 [[nodiscard]] inline sax::Rng & generator ( ) noexcept {
     if constexpr ( RANDOM ) {
         static thread_local sax::Rng generator ( sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ) );
