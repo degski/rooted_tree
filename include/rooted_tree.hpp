@@ -376,10 +376,15 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                     }
                 }
             }
-            count -= 1;
-            parent = de ( queue );
-            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                en ( queue, child );
+            if ( queue.size ( ) ) {
+                parent = de ( queue );
+                count -= 1;
+                for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    en ( queue, child );
+            }
+            else {
+                parent = rooted_tree_base::invalid;
+            }
             return *this;
         }
 
@@ -420,10 +425,15 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                     }
                 }
             }
-            count -= 1;
-            parent = de ( queue );
-            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                en ( queue, child );
+            if ( queue.size ( ) ) {
+                parent = de ( queue );
+                count -= 1;
+                for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    en ( queue, child );
+            }
+            else {
+                parent = rooted_tree_base::invalid;
+            }
             return *this;
         }
 
