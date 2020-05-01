@@ -184,7 +184,7 @@ int main ( ) {
 
     std::cout << tree.apply ( compare_foo_value, 10 ) << nl;
 
-    for ( SequentailTree::const_level_iterator it ( tree ); it.is_valid ( ); ++it )
+    for ( SequentailTree::const_level_iterator it ( tree, 4 ); it.is_valid ( ); ++it )
         std::cout << it.id ( ) << ' ';
     std::cout << '\n';
 

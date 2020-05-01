@@ -360,23 +360,24 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         public:
         level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid node_ = rooted_tree_base::root ) noexcept :
             tree{ tree_ }, max_depth{ max_depth_ }, parent{ node_ } {
-            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                en ( queue, child );
+            if ( ( not max_depth ) or ( max_depth > 1 ) )
+                for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    en ( queue, child );
             count = static_cast<size_type> ( queue.size ( ) );
-            depth = 1;
+            depth = 1 + static_cast<int> ( 0 != count );
         }
 
         [[maybe_unused]] level_iterator & operator++ ( ) noexcept {
-            if ( not count ) {
-                count = static_cast<size_type> ( queue.size ( ) );
-                if ( max_depth ) {
-                    if ( max_depth == depth++ ) {
-                        parent = rooted_tree_base::invalid;
-                        return *this;
+            if ( queue.size ( ) ) {
+                if ( not count ) {
+                    count = static_cast<size_type> ( queue.size ( ) );
+                    if ( ( not max_depth ) or ( max_depth > 1 ) ) {
+                        if ( max_depth == depth++ ) {
+                            parent = rooted_tree_base::invalid;
+                            return *this;
+                        }
                     }
                 }
-            }
-            if ( queue.size ( ) ) {
                 parent = de ( queue );
                 count -= 1;
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
@@ -409,23 +410,24 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                                nid node_ = rooted_tree_base::root ) noexcept :
             tree{ tree_ },
             max_depth{ max_depth_ }, parent{ node_ } {
-            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                en ( queue, child );
+            if ( ( not max_depth ) or ( max_depth > 1 ) )
+                for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    en ( queue, child );
             count = static_cast<size_type> ( queue.size ( ) );
-            depth = 1;
+            depth = 1 + static_cast<int> ( 0 != count );
         }
 
         [[maybe_unused]] const_level_iterator & operator++ ( ) noexcept {
-            if ( not count ) {
-                count = static_cast<size_type> ( queue.size ( ) );
-                if ( max_depth ) {
-                    if ( max_depth == depth++ ) {
-                        parent = rooted_tree_base::invalid;
-                        return *this;
+            if ( queue.size ( ) ) {
+                if ( not count ) {
+                    count = static_cast<size_type> ( queue.size ( ) );
+                    if ( ( not max_depth ) or ( max_depth > 1 ) ) {
+                        if ( max_depth == depth++ ) {
+                            parent = rooted_tree_base::invalid;
+                            return *this;
+                        }
                     }
                 }
-            }
-            if ( queue.size ( ) ) {
                 parent = de ( queue );
                 count -= 1;
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
@@ -564,7 +566,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                 if ( function_ ( nodes[ parent.id ], value_ ) )
                     return parent;
             }
-            if ( max_depth_ )
+            if ( max_depth_ > 1 )
                 if ( max_depth_ == depth++ )
                     break;
         }
@@ -593,7 +595,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
                 tree.insert ( index[ nodes[ parent.id ].up.id ],
                               std::move ( nodes[ parent.id ] ) ); // destructive.
             }
-            if ( max_depth_ )
+            if ( max_depth_ > 1 )
                 if ( max_depth_ == depth++ )
                     break;
         }
