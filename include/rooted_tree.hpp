@@ -358,7 +358,7 @@ struct rooted_tree_base {
         nid parent;
 
         public:
-        level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid node_ = rooted_tree_base::root ) noexcept :
+        level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid node_ = rooted_tree_base::root ) :
             tree{ tree_ }, max_depth{ max_depth_ }, parent{ node_ } {
             if ( ( not max_depth ) or ( max_depth > 1 ) )
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
@@ -367,7 +367,7 @@ struct rooted_tree_base {
             depth = 1 + static_cast<size_type> ( 0 != count );
         }
 
-        [[maybe_unused]] level_iterator & operator++ ( ) noexcept {
+        [[maybe_unused]] level_iterator & operator++ ( ) {
             if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
                     count = queue_size;
@@ -409,10 +409,8 @@ struct rooted_tree_base {
         nid parent;
 
         public:
-        const_level_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0,
-                               nid node_ = rooted_tree_base::root ) noexcept :
-            tree{ tree_ },
-            max_depth{ max_depth_ }, parent{ node_ } {
+        const_level_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0, nid node_ = rooted_tree_base::root ) :
+            tree{ tree_ }, max_depth{ max_depth_ }, parent{ node_ } {
             if ( ( not max_depth ) or ( max_depth > 1 ) )
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
@@ -420,7 +418,7 @@ struct rooted_tree_base {
             depth = 1 + static_cast<size_type> ( 0 != count );
         }
 
-        [[maybe_unused]] const_level_iterator & operator++ ( ) noexcept {
+        [[maybe_unused]] const_level_iterator & operator++ ( ) {
             if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
                     count = queue_size;
