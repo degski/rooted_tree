@@ -564,6 +564,13 @@ struct rooted_tree_base {
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
+    void await_construction ( nid node_ ) noexcept {
+        while ( node_.id >= static_cast<size_type> ( nodes.size ( ) ) ) // Wait allocation.
+            std::this_thread::yield ( );
+        while ( not nodes[ static_cast<typename node_vector::size_type> ( node_.id ) ].done ) // Wait construction.
+            std::this_thread::yield ( );
+    }
+
 #if USE_CEREAL
     private:
     friend class cereal::access;
