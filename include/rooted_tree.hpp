@@ -447,6 +447,7 @@ struct rooted_tree_base {
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
+        [[nodiscard]] size_type depth ( ) const noexcept { return depth; }
     };
 
     class out_iterator {
@@ -469,6 +470,7 @@ struct rooted_tree_base {
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
+        [[nodiscard]] size_type depth ( ) const noexcept { return depth; }
     };
 
     class const_out_iterator {
