@@ -368,9 +368,9 @@ struct rooted_tree_base {
         }
 
         [[maybe_unused]] level_iterator & operator++ ( ) noexcept {
-            if ( queue.size ( ) ) {
+            if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
-                    count = static_cast<size_type> ( queue.size ( ) );
+                    count = queue_size;
                     if ( ( not max_depth ) or ( max_depth > 1 ) ) {
                         if ( max_depth == depth++ ) {
                             parent = rooted_tree_base::invalid;
@@ -395,6 +395,7 @@ struct rooted_tree_base {
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
+        [[nodiscard]] size_type height ( ) const noexcept { return depth; }
     };
 
     // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
@@ -420,9 +421,9 @@ struct rooted_tree_base {
         }
 
         [[maybe_unused]] const_level_iterator & operator++ ( ) noexcept {
-            if ( queue.size ( ) ) {
+            if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
-                    count = static_cast<size_type> ( queue.size ( ) );
+                    count = queue_size;
                     if ( ( not max_depth ) or ( max_depth > 1 ) ) {
                         if ( max_depth == depth++ ) {
                             parent = rooted_tree_base::invalid;
@@ -447,7 +448,7 @@ struct rooted_tree_base {
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
-        [[nodiscard]] size_type depth ( ) const noexcept { return depth; }
+        [[nodiscard]] size_type height ( ) const noexcept { return depth; }
     };
 
     class out_iterator {
@@ -470,7 +471,6 @@ struct rooted_tree_base {
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
-        [[nodiscard]] size_type depth ( ) const noexcept { return depth; }
     };
 
     class const_out_iterator {
