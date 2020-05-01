@@ -35,6 +35,7 @@
 #    include <iostream>
 #endif
 
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -348,7 +349,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         }
     }
 
-    // Level iterator, it is safe to destroy the node the interator is pointing at.
+    // It is safe to destroy the node the interator is pointing at. level_iterator is a (rather) heavy object.
     class level_iterator {
 
         friend struct rooted_tree_base;
@@ -398,7 +399,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
     };
 
-    // Level iterator, it is safe to destroy the node the interator is pointing at.
+    // It is safe to destroy the node the interator is pointing at. level_iterator is a (rather) heavy object.
     class const_level_iterator {
 
         friend struct rooted_tree_base;
@@ -556,7 +557,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
 
     node_vector nodes;
 
-    [[nodiscard]] static constexpr size_type max_fan_out ( ) noexcept {
+    [[nodiscard]] static constexpr std::size_t max_fan_out ( ) noexcept {
         return std::numeric_limits<decltype ( hook::fan )>::max ( );
     }
 
