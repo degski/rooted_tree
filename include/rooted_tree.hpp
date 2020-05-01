@@ -121,10 +121,18 @@ using zeroing_vector = std::vector<T, tbb::zero_allocator<T>>;
 using id_vector      = zeroing_vector<nid>;
 using id_deque       = boost::container::deque<nid, tbb::tbb_allocator<nid>>;
 
-[[nodiscard]] nid pop ( id_deque & d_ ) noexcept {
+// De-queue.
+[[nodiscard]] nid de ( id_deque & d_ ) noexcept {
+    assert ( d_.size ( ) );
     nid v = d_.front ( );
     d_.pop_front ( );
     return v;
+}
+
+// En-queue.
+template<typename T>
+[[maybe_unused]] auto en ( id_deque & d_, T const & v_ ) {
+    return d_.push_back ( v_ );
 }
 
 inline constexpr int reserve_size = 1'024;
@@ -171,11 +179,36 @@ struct rooted_tree_base {
 
     using hook = rooted_tree_base_hook<Concurrent>;
 
+    private:
     using data_vector = std::conditional_t<Concurrent, tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>, std::vector<Node>>;
 
-    using mutex      = std::conditional_t<Concurrent, tbb::spin_mutex, void>;
-    using lock_guard = std::conditional_t<Concurrent, tbb::spin_mutex::scoped_lock, void>;
+    public:
+    struct dummy_mutex final {
+        dummy_mutex ( ) noexcept                = default;
+        dummy_mutex ( dummy_mutex const & )     = delete;
+        dummy_mutex ( dummy_mutex && ) noexcept = delete;
 
+        dummy_mutex & operator= ( dummy_mutex const & ) = delete;
+        dummy_mutex & operator= ( dummy_mutex && ) noexcept = delete;
+
+        void lock ( ) noexcept { return; };
+        bool try_lock ( ) noexcept { return true; };
+        void unlock ( ) noexcept { return; };
+    };
+
+    struct dummy_scoped_lock final {
+        dummy_scoped_lock ( ) noexcept                      = delete;
+        dummy_scoped_lock ( dummy_scoped_lock const & )     = delete;
+        dummy_scoped_lock ( dummy_scoped_lock && ) noexcept = delete;
+        template<typename... Args>
+        dummy_scoped_lock ( Args &&... ) noexcept {}
+
+        dummy_scoped_lock & operator= ( dummy_scoped_lock const & ) = delete;
+        dummy_scoped_lock & operator= ( dummy_scoped_lock && ) noexcept = delete;
+    };
+
+    using mutex           = std::conditional_t<Concurrent, tbb::spin_mutex, dummy_mutex>;
+    using scoped_lock     = std::conditional_t<Concurrent, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
     using size_type       = int;
     using difference_type = int;
     using value_type      = typename data_vector::value_type;
@@ -188,6 +221,7 @@ struct rooted_tree_base {
 
     rooted_tree_base ( ) {
         nodes.reserve ( reserve_size );
+        // Create invalid-node.
         if constexpr ( Concurrent ) {
             nodes.grow_by ( 1 );
         }
@@ -198,6 +232,7 @@ struct rooted_tree_base {
 
     template<typename... Args>
     rooted_tree_base ( Args &&... args_ ) : rooted_tree_base ( ) {
+        // Emplace a root-node.
         emplace ( invalid, std::forward<Args> ( args_ )... );
     }
 
@@ -231,7 +266,7 @@ struct rooted_tree_base {
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
             {
-                lock_guard lock ( source.mutex );
+                scoped_lock lock ( source.mutex );
                 target->prev = std::exchange ( source.tail, id );
                 source.size += 1;
             }
@@ -302,22 +337,26 @@ struct rooted_tree_base {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
+    // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
+    // root-node) node down to the farthest leaf node.
     [[nodiscard]] size_type height ( nid root_ = nid{ root.id } ) const {
         id_deque queue ( 1, root_ );
         size_type depth = 0, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( count-- ) {
-                nid parent = pop ( queue );
+                nid parent = de ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                    queue.push_back ( child );
+                    en ( queue, child );
             }
             depth += 1;
         }
         return depth;
     }
 
-    // Apply function to nodes in bfs-fashion, till max_depth_ is reached or till function returns true.
-    // Returns the nid of the node that made function return true.
+    // Apply function to nodes while level-traversing till max_depth_ is reached or till function returns
+    // true. 'apply()' can be used to find some node (possibly changing it), or to apply some function to
+    // all nodes (function always returns false ) till max_depth (never iff 0) is reached. Returns the nid
+    // of the node that made function return true.
     template<typename Function, typename Value>
     [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
                               nid root_ = nid{ root.id } ) const {
@@ -325,9 +364,9 @@ struct rooted_tree_base {
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( count-- ) {
-                nid parent = pop ( queue );
+                nid parent = de ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
-                    queue.push_back ( child );
+                    en ( queue, child );
                 if ( function_ ( nodes[ parent.id ], value_ ) )
                     return parent;
             }
@@ -338,37 +377,55 @@ struct rooted_tree_base {
         return invalid;
     }
 
-    // Make root_ (must exist) the new root of the tree
-    // and discard the rest of the tree.
-    void sub ( size_type max_depth_, nid root_ ) {
-        if ( not max_depth_ and root == root_ )
-            return;
+    private:
+    // Make a sub-tree.
+    [[nodiscard]] rooted_tree_base make_sub_impl ( size_type max_depth_, nid root_ ) {
         assert ( root_.is_valid ( ) );
-        rooted_tree_base sub_tree;
-        id_vector visited ( nodes.size ( ) );
-        visited[ root_.id ] = sub_tree.root;
+        rooted_tree_base tree;
+        id_vector index ( nodes.size ( ) );
+        index[ root_.id ] = tree.root;
         id_deque queue ( 1, root_ );
         nid sub_tree_size{ 2 };
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( count-- ) {
-                nid parent = pop ( queue );
+                nid parent = de ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev ) {
-                    if ( visited[ child.id ].is_invalid ( ) ) {
-                        visited[ child.id ] = sub_tree_size++;
-                        queue.push_back ( child );
+                    if ( index[ child.id ].is_invalid ( ) ) {
+                        index[ child.id ] = sub_tree_size++;
+                        en ( queue, child );
                     }
                 }
-                sub_tree.emplace ( visited[ nodes[ parent.id ].up.id ],
-                                   std::move ( nodes[ parent.id ] ) ); // old parent destroyed.
+                tree.emplace ( index[ nodes[ parent.id ].up.id ],
+                               std::move ( nodes[ parent.id ] ) ); // destructive.
             }
             if ( max_depth_ )
                 if ( max_depth_ == depth++ )
                     break;
         }
-        std::swap ( nodes, sub_tree.nodes );
+        return tree;
     }
+
+    public:
+    // Make a sub-tree.
+    [[nodiscard]] rooted_tree_base make_sub ( size_type max_depth_, nid root_ ) {
+        if ( not max_depth_ and root == root_ )
+            return;
+        return make_sub_impl ( max_depth_, root );
+    }
+    [[nodiscard]] rooted_tree_base make_sub ( nid node_ ) { return make_sub ( 0, node_ ); }
+    [[nodiscard]] rooted_tree_base make_sub ( size_type max_depth_ ) { return make_sub ( max_depth_, root ); }
+
+    // Replace tree with sub-tree.
+    void sub ( size_type max_depth_, nid root_ ) {
+        if ( not max_depth_ and root == root_ )
+            return;
+        rooted_tree_base tree = make_sub_impl ( max_depth_, root_ );
+        std::swap ( nodes, tree.nodes );
+    }
+    // Replace tree with sub-tree.
     void sub ( nid node_ ) { sub ( 0, node_ ); }
+    // Replace tree with sub-tree.
     void sub ( size_type max_depth_ ) { sub ( max_depth_, root ); }
 
     data_vector nodes;
