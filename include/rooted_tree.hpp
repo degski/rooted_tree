@@ -348,6 +348,92 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         }
     }
 
+    class level_iterator {
+
+        friend struct rooted_tree_base;
+
+        rooted_tree_base & tree;
+        id_deque queue;
+        size_type max_depth, depth, count;
+        nid parent;
+
+        public:
+        level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid node_ = rooted_tree_base::root ) noexcept :
+            tree{ tree_ }, max_depth{ max_depth_ }, parent{ node_ } {
+            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                en ( queue, child );
+            count = static_cast<size_type> ( queue.size ( ) );
+            depth = 1;
+        }
+
+        [[maybe_unused]] level_iterator & operator++ ( ) noexcept {
+            if ( not count ) {
+                count = static_cast<size_type> ( queue.size ( ) );
+                if ( max_depth ) {
+                    if ( max_depth == depth++ ) {
+                        parent = rooted_tree_base::invalid;
+                        return *this;
+                    }
+                }
+            }
+            count -= 1;
+            parent = de ( queue );
+            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                en ( queue, child );
+            return *this;
+        }
+
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ parent.id ]; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + parent.id; }
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return parent; }
+    };
+
+    class const_level_iterator {
+
+        friend struct rooted_tree_base;
+
+        rooted_tree_base const & tree;
+        id_deque queue;
+        size_type max_depth, depth, count;
+        nid parent;
+
+        public:
+        const_level_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0,
+                               nid node_ = rooted_tree_base::root ) noexcept :
+            tree{ tree_ },
+            max_depth{ max_depth_ }, parent{ node_ } {
+            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                en ( queue, child );
+            count = static_cast<size_type> ( queue.size ( ) );
+            depth = 1;
+        }
+
+        [[maybe_unused]] const_level_iterator & operator++ ( ) noexcept {
+            if ( not count ) {
+                count = static_cast<size_type> ( queue.size ( ) );
+                if ( max_depth ) {
+                    if ( max_depth == depth++ ) {
+                        parent = rooted_tree_base::invalid;
+                        return *this;
+                    }
+                }
+            }
+            count -= 1;
+            parent = de ( queue );
+            for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                en ( queue, child );
+            return *this;
+        }
+
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ parent.id ]; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + parent.id; }
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return parent; }
+    };
+
     class out_iterator {
 
         friend struct rooted_tree_base;
@@ -394,9 +480,9 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
 
     // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
     // root-node) node down to the farthest leaf node.
-    [[nodiscard]] size_type height ( nid root_ = nid{ root.id } ) const {
+    [[nodiscard]] size_type height ( nid root_ = root ) const {
         id_deque queue ( 1, root_ );
-        size_type depth = 0, count;
+        size_type depth = 0, count = 0;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
             while ( count-- ) {
                 nid parent = de ( queue );
@@ -410,11 +496,10 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
 
     // Apply function to nodes while level-traversing till max_depth_ is reached or till function returns
     // true. 'apply()' can be used to find some node (possibly changing it), or to apply some function to
-    // all nodes (function always returns false ) till max_depth (never iff 0) is reached. Returns the nid
+    // all nodes (function always returns false) till max_depth (never iff 0) is reached. Returns the nid
     // of the node that made function return true.
     template<typename Function, typename Value>
-    [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0,
-                              nid root_ = nid{ root.id } ) const {
+    [[nodiscard]] nid apply ( Function function_, Value const & value_, size_type max_depth_ = 0, nid root_ = root ) const {
         id_deque queue ( 1, root_ );
         size_type depth = 1, count;
         while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
@@ -497,7 +582,7 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         ar_ ( nodes );
     }
 #endif
-};
+}; // namespace detail
 
 } // namespace detail
 
