@@ -272,6 +272,7 @@ struct rooted_tree_base {
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
             iterator target = nodes.push_back ( std::move ( node_ ) );
             nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
@@ -297,6 +298,7 @@ struct rooted_tree_base {
     }
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
             iterator target = nodes.push_back ( node_ );
             nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
@@ -324,6 +326,7 @@ struct rooted_tree_base {
     // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
             iterator target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
