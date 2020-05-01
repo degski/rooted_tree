@@ -556,6 +556,10 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
 
     node_vector nodes;
 
+    [[nodiscard]] static constexpr size_type max_fan_out ( ) noexcept {
+        return std::numeric_limits<decltype ( hook::fan )>::max ( );
+    }
+
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
 #if USE_CEREAL

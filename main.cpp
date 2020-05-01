@@ -180,10 +180,6 @@ int main ( ) {
 
     std::cout << tree.height ( ) << nl;
 
-    auto compare_foo_value = [] ( auto node_ref, auto value_ref ) noexcept -> bool { return node_ref.value == value_ref; };
-
-    std::cout << tree.apply ( compare_foo_value, 10 ) << nl;
-
     for ( SequentailTree::const_level_iterator it ( tree, 4 ); it.is_valid ( ); ++it )
         std::cout << it.id ( ) << ' ';
     std::cout << '\n';
