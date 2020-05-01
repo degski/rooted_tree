@@ -94,7 +94,7 @@ void add_nodes ( Tree & tree_, int n_ ) {
                         i );
 }
 
-int main567657 ( ) {
+int main ( ) {
 
     {
         SequentailTree tree ( 1 );
@@ -135,7 +135,7 @@ int main567657 ( ) {
     return EXIT_SUCCESS;
 }
 
-int main ( ) {
+int main675675 ( ) {
 
     SequentailTree tree ( 1 );
 
@@ -175,8 +175,6 @@ int main ( ) {
     std::cout << nl;
     */
 
-    // tree.sub ( 0, n2 );
-
     //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
     //    std::cout << it->value << ' ';
 
@@ -185,6 +183,10 @@ int main ( ) {
     auto compare_foo_value = [] ( auto node_ref, auto value_ref ) noexcept -> bool { return node_ref.value == value_ref; };
 
     std::cout << tree.apply ( compare_foo_value, 10 ) << nl;
+
+    tree.sub ( n2 );
+
+    std::cout << tree.height ( ) << nl;
 
     return EXIT_SUCCESS;
 }
