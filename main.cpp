@@ -138,50 +138,33 @@ int main ( ) {
 
     SequentailTree tree ( 1 );
 
-    sax::nid n2 = tree.emplace ( tree.root, 2 );
-
-    sax::nid n3 = tree.emplace ( tree.root, 3 );
-
-    sax::nid n4 = tree.emplace ( tree.root, 4 );
-
-    sax::nid n5 = tree.emplace ( n2, 5 );
-
-    sax::nid n6 = tree.emplace ( n2, 6 );
-
-    sax::nid n7 = tree.emplace ( n3, 7 );
-
-    sax::nid n8 = tree.emplace ( n4, 8 );
-
-    sax::nid n9 = tree.emplace ( tree.root, 9 );
-
+    // sax::nid n1  = tree.emplace ( SequentailTree::invalid, 2 ); oops!!! added 2 roots.
+    sax::nid n2  = tree.emplace ( SequentailTree::root, 2 );
+    sax::nid n3  = tree.emplace ( SequentailTree::root, 3 );
+    sax::nid n4  = tree.emplace ( SequentailTree::root, 4 );
+    sax::nid n5  = tree.emplace ( n2, 5 );
+    sax::nid n6  = tree.emplace ( n2, 6 );
+    sax::nid n7  = tree.emplace ( n3, 7 );
+    sax::nid n8  = tree.emplace ( n4, 8 );
+    sax::nid n9  = tree.emplace ( SequentailTree::root, 9 );
     sax::nid n10 = tree.emplace ( n4, 10 );
-
     sax::nid n11 = tree.emplace ( n2, 11 );
-
     sax::nid n12 = tree.emplace ( n2, 12 );
-
     sax::nid n13 = tree.emplace ( n12, 13 );
 
-    /*
-    for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
-        std::cout << it->value << ' ';
-
+    for ( SequentailTree::const_out_iterator it{ tree, SequentailTree::root }; it.is_valid ( ); ++it )
+        std::cout << it.id ( ) << sp;
     std::cout << nl;
 
     for ( SequentailTree::const_out_iterator it{ tree, n2 }; it.is_valid ( ); ++it )
-        std::cout << it->value << ' ';
-
+        std::cout << it->value << sp;
     std::cout << nl;
-    */
-
-    //  for ( SequentailTree::const_out_iterator it{ tree, tree.root }; it.is_valid ( ); ++it )
-    //    std::cout << it->value << ' ';
 
     std::cout << tree.height ( ) << nl;
 
-    for ( SequentailTree::const_level_iterator it ( tree, 4 ); it.is_valid ( ); ++it )
-        std::cout << it.id ( ) << ' ';
-    std::cout << '\n';
+    for ( SequentailTree::const_level_iterator it{ tree, 4 }; it.is_valid ( ); ++it )
+        std::cout << it.id ( ) << sp;
+    std::cout << nl;
 
     return EXIT_SUCCESS;
 }
