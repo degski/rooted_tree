@@ -478,6 +478,50 @@ struct rooted_tree_base { // The tree has 1 (one, and only one,) root.
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
+    class up_iterator {
+
+        friend struct rooted_tree_base;
+
+        rooted_tree_base & tree;
+        nid node;
+
+        public:
+        up_iterator ( rooted_tree_base & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ node_ } {}
+
+        [[maybe_unused]] up_iterator & operator++ ( ) noexcept {
+            node = tree[ node.id ].up;
+            return *this;
+        }
+
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    class const_up_iterator {
+
+        friend struct rooted_tree_base;
+
+        rooted_tree_base const & tree;
+        nid node;
+
+        public:
+        const_up_iterator ( rooted_tree_base const & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ node_ } {}
+
+        [[maybe_unused]] const_up_iterator & operator++ ( ) noexcept {
+            node = tree[ node.id ].up;
+            return *this;
+        }
+
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
     // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
     // root-node) node down to the farthest leaf node.
     [[nodiscard]] size_type height ( nid root_ = root ) const {
