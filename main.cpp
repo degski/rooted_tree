@@ -96,15 +96,30 @@ void add_nodes ( Tree & tree_, int n_ ) {
 int main ( ) {
 
     {
-        SequentailTree tree ( 1 );
+        std::cout << "sequential tree" << nl;
+
+        SequentailTree tree;
+        tree.reserve ( 4'000'003 );
+        tree.emplace ( SequentailTree ::invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
         add_nodes ( tree, 4'000'001 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << ' ' << tree.nodes.size ( ) << nl;
+        std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
+        timer.start ( );
+        std::uint64_t sum = 0;
+        for ( SequentailTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum += it.id ( ).id;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum << nl;
+        timer.start ( );
+        std::uint64_t h = tree.height ( );
+        duration        = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << h << nl;
     }
 
     {
+        std::cout << "concurrent tree" << nl;
         ConcurrentTree tree ( 1 );
         std::vector<std::thread> threads;
         threads.reserve ( 4 );
@@ -115,41 +130,58 @@ int main ( ) {
         for ( std::thread & tree : threads )
             tree.join ( );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << ' ' << tree.nodes.size ( ) << nl;
+        std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
+        timer.start ( );
+        std::uint64_t sum = 0;
+        for ( ConcurrentTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum += it.id ( ).id;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum << nl;
+        timer.start ( );
+        std::uint64_t h = tree.height ( );
+        duration        = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << h << nl;
     }
 
     return EXIT_SUCCESS;
 }
 
-int main56456 ( ) {
+int main6576765 ( ) {
 
-    SequentailTree tree ( 1 );
+    using Tree = SequentailTree;
 
-    // sax::nid n1  = tree.emplace ( SequentailTree::invalid, 2 ); oops!!! added 2 roots.
-    sax::nid n2  = tree.emplace ( SequentailTree::root, 2 );
-    sax::nid n3  = tree.emplace ( SequentailTree::root, 3 );
-    sax::nid n4  = tree.emplace ( SequentailTree::root, 4 );
+    Tree tree ( 1 );
+
+    // sax::nid n1  = tree.emplace ( Tree::invalid, 2 ); oops!!! added 2 roots.
+    sax::nid n2  = tree.emplace ( Tree::root, 2 );
+    sax::nid n3  = tree.emplace ( Tree::root, 3 );
+    sax::nid n4  = tree.emplace ( Tree::root, 4 );
     sax::nid n5  = tree.emplace ( n2, 5 );
     sax::nid n6  = tree.emplace ( n2, 6 );
     sax::nid n7  = tree.emplace ( n3, 7 );
     sax::nid n8  = tree.emplace ( n4, 8 );
-    sax::nid n9  = tree.emplace ( SequentailTree::root, 9 );
+    sax::nid n9  = tree.emplace ( Tree::root, 9 );
     sax::nid n10 = tree.emplace ( n4, 10 );
     sax::nid n11 = tree.emplace ( n2, 11 );
     sax::nid n12 = tree.emplace ( n2, 12 );
     sax::nid n13 = tree.emplace ( n12, 13 );
 
-    for ( SequentailTree::const_out_iterator it{ tree, SequentailTree::root }; it.is_valid ( ); ++it )
+    Tree::const_out_iterator it{ tree, Tree::root };
+    std::cout << *it << sp;
+
+    exit ( 0 );
+
+    for ( Tree::const_out_iterator it{ tree, Tree::root }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 
-    for ( SequentailTree::const_out_iterator it{ tree, n2 }; it.is_valid ( ); ++it )
+    for ( Tree::const_out_iterator it{ tree, n2 }; it.is_valid ( ); ++it )
         std::cout << it->value << sp;
     std::cout << nl;
 
     std::cout << tree.height ( ) << nl;
 
-    for ( SequentailTree::const_level_iterator it{ tree, 4 }; it.is_valid ( ); ++it )
+    for ( Tree::const_level_iterator it{ tree, 4 }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 

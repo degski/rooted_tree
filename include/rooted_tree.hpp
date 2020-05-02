@@ -143,6 +143,19 @@ struct rooted_tree_base_hook<false> { // 16 bytes.
     nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
     int fan = 0; // 0 <= fan-out < 2'147'483'648.
 
+#if USE_IO
+    template<typename Stream>
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const & node_ ) noexcept {
+        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
+            out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.fan << L'>';
+        }
+        else {
+            out_ << '<' << node_.up << ' ' << node_.prev << ' ' << node_.tail << ' ' << node_.fan << '>';
+        }
+        return out_;
+    }
+#endif
+
 #if USE_CEREAL
     private:
     friend class cereal::access;
@@ -159,6 +172,19 @@ struct rooted_tree_base_hook<true> { // 16 bytes.
     short fan; // 0 <= fan-out < 32'768.
     tbb::spin_mutex mutex;
     tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
+
+#if USE_IO
+    template<typename Stream>
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const & node_ ) noexcept {
+        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
+            out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.fan << L'>';
+        }
+        else {
+            out_ << '<' << node_.up << ' ' << node_.prev << ' ' << node_.tail << ' ' << node_.fan << '>';
+        }
+        return out_;
+    }
+#endif
 
 #if USE_CEREAL
     private:
@@ -232,9 +258,6 @@ struct rooted_tree_base {
         // Emplace a root-node.
         emplace ( invalid, std::forward<Args> ( args_ )... );
     }
-
-    [[nodiscard]] const_pointer data ( ) const noexcept { return nodes.data ( ); }
-    [[nodiscard]] pointer data ( ) noexcept { return nodes.data ( ); }
 
     [[nodiscard]] const_iterator begin ( ) const noexcept { return nodes.begin ( ); }
     [[nodiscard]] const_iterator cbegin ( ) const noexcept { return nodes.cbegin ( ); }
@@ -316,6 +339,7 @@ struct rooted_tree_base {
         if constexpr ( Concurrent ) {
             iterator target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
             {
@@ -380,7 +404,7 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ parent.id ]; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + parent.id; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ parent.id ] ); }
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
@@ -431,7 +455,7 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ parent.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + parent.id; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ parent.id ] ); }
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
@@ -454,7 +478,7 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
@@ -476,7 +500,7 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
@@ -498,7 +522,7 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
@@ -520,7 +544,7 @@ struct rooted_tree_base {
         }
 
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return tree.data ( ) + node.id; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
 
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
