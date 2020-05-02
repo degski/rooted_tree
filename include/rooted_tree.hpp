@@ -143,10 +143,6 @@ struct rooted_tree_base_hook<false> { // 16 bytes.
     nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
     int fan = 0; // 0 <= fan-out < 2'147'483'648.
 
-    rooted_tree_base_hook ( ) noexcept                          = default;
-    rooted_tree_base_hook ( rooted_tree_base_hook const & )     = delete;
-    rooted_tree_base_hook ( rooted_tree_base_hook && ) noexcept = delete;
-
 #if USE_IO
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const & node_ ) noexcept {

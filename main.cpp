@@ -75,10 +75,11 @@ namespace Rng {
 sax::Rng & rng = Rng::generator ( );
 
 template<typename Hook>
-struct Foo : Hook {
-    int value = 0;
-    Foo ( ) noexcept : Hook ( ) {}
-    Foo ( Foo const & foo_ ) noexcept : Hook ( ), value{ foo_.value } {}
+struct Foo : public Hook {
+    int value                         = 0;
+    Foo ( ) noexcept                  = default;
+    Foo ( Foo const & foo_ ) noexcept = default;
+
     explicit Foo ( int const & i_ ) noexcept : Hook ( ), value{ i_ } {}
     explicit Foo ( int && i_ ) noexcept : Hook ( ), value{ std::move ( i_ ) } {}
 };
@@ -97,16 +98,11 @@ int main ( ) {
 
     {
         std::cout << "sequential tree" << nl;
-
-        std::cout << std::is_move_constructible<typename SequentailTree::value_type>::value << nl;
-        std::cout << std::is_move_assignable<typename SequentailTree::value_type>::value << nl;
-
         SequentailTree tree;
-        // tree.reserve ( 4'000'003 );
         tree.emplace ( SequentailTree ::invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
-        add_nodes ( tree, 1'024 );
+        add_nodes ( tree, 4'000'001 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
