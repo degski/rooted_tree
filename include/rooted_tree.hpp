@@ -45,7 +45,7 @@
 #    include <boost/container/deque.hpp>
 #endif
 
-#include <tbb/concurrent_vector.h> // tbb_config.h needs fizing to make this work with clang-cl.
+#include <tbb/concurrent_vector.h> // tbb_config.h needs fixing to make this work with clang-cl.
 #include <tbb/spin_mutex.h>
 
 #if USE_CEREAL
