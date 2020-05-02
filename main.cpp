@@ -97,38 +97,25 @@ int main ( ) {
 
     {
         SequentailTree tree ( 1 );
-
         plf::nanotimer timer;
-
         timer.start ( );
-
         add_nodes ( tree, 4'000'001 );
-
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-
-        std::cout << duration << "ms" << nl << nl;
-        std::cout << tree.nodes.size ( ) << nl;
+        std::cout << duration << "ms" << ' ' << tree.nodes.size ( ) << nl;
     }
 
     {
         ConcurrentTree tree ( 1 );
-
         std::vector<std::thread> threads;
         threads.reserve ( 4 );
-
         plf::nanotimer timer;
-
         timer.start ( );
-
         for ( int n = 0; n < 4; ++n )
             threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
         for ( std::thread & tree : threads )
             tree.join ( );
-
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-
-        std::cout << duration << "ms" << nl << nl;
-        std::cout << tree.nodes.size ( ) << nl;
+        std::cout << duration << "ms" << ' ' << tree.nodes.size ( ) << nl;
     }
 
     return EXIT_SUCCESS;
