@@ -285,6 +285,7 @@ struct rooted_tree_base {
         if constexpr ( Concurrent ) {
             iterator target = nodes.push_back ( std::move ( node_ ) );
             nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
             {
@@ -311,6 +312,7 @@ struct rooted_tree_base {
         if constexpr ( Concurrent ) {
             iterator target = nodes.push_back ( node_ );
             nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
             {
@@ -352,10 +354,9 @@ struct rooted_tree_base {
         else {
             nid id{ static_cast<size_type> ( nodes.size ( ) ) };
             value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            target.up           = source_;
-            value_type & source = nodes[ source_.id ];
-            target.prev         = std::exchange ( source.tail, id );
-            source.fan += 1;
+            nodes[ source_.id ].fan += 1;
+            target.up   = source_;
+            target.prev = std::exchange ( nodes[ source_.id ].tail, id );
             return id;
         }
     }

@@ -99,7 +99,7 @@ int main ( ) {
         std::cout << "sequential tree" << nl;
 
         SequentailTree tree;
-        tree.reserve ( 4'000'003 );
+        // tree.reserve ( 4'000'003 );
         tree.emplace ( SequentailTree ::invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
