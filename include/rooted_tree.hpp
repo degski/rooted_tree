@@ -143,6 +143,10 @@ struct rooted_tree_base_hook<false> { // 16 bytes.
     nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
     int fan = 0; // 0 <= fan-out < 2'147'483'648.
 
+    rooted_tree_base_hook ( ) noexcept                          = default;
+    rooted_tree_base_hook ( rooted_tree_base_hook const & )     = delete;
+    rooted_tree_base_hook ( rooted_tree_base_hook && ) noexcept = delete;
+
 #if USE_IO
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const & node_ ) noexcept {
@@ -262,22 +266,14 @@ struct rooted_tree_base {
     [[nodiscard]] const_iterator begin ( ) const noexcept { return nodes.begin ( ); }
     [[nodiscard]] const_iterator cbegin ( ) const noexcept { return nodes.cbegin ( ); }
     [[nodiscard]] iterator begin ( ) noexcept { return nodes.begin ( ); }
-
     [[nodiscard]] const_iterator end ( ) const noexcept { return nodes.end ( ); }
     [[nodiscard]] const_iterator cend ( ) const noexcept { return nodes.cend ( ); }
     [[nodiscard]] iterator end ( ) noexcept { return nodes.end ( ); }
-
-    [[nodiscard]] value_type & operator[] ( nid node_ ) noexcept {
-        return nodes[ static_cast<typename node_vector::size_type> ( node_.id ) ];
-    }
-    [[nodiscard]] value_type const & operator[] ( nid node_ ) const noexcept {
-        return nodes[ static_cast<typename node_vector::size_type> ( node_.id ) ];
-    }
-
+    [[nodiscard]] value_type & operator[] ( nid node_ ) noexcept { return nodes[ node_.id ]; }
+    [[nodiscard]] value_type const & operator[] ( nid node_ ) const noexcept { return nodes[ node_.id ]; }
     [[nodiscard]] value_type & operator[] ( size_type node_ ) noexcept { return nodes[ node_ ]; }
     [[nodiscard]] value_type const & operator[] ( size_type node_ ) const noexcept { return nodes[ node_ ]; }
-
-    void reserve ( size_type c_ ) { nodes.reserve ( static_cast<typename node_vector::size_type> ( c_ ) ); }
+    void reserve ( size_type c_ ) { nodes.reserve ( c_ ); }
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
@@ -363,9 +359,7 @@ struct rooted_tree_base {
 
     // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
     class level_iterator {
-
         friend struct rooted_tree_base;
-
         rooted_tree_base & tree;
         id_deque queue;
         size_type max_depth, depth, count;
@@ -380,7 +374,6 @@ struct rooted_tree_base {
             count = static_cast<size_type> ( queue.size ( ) );
             depth = 1 + static_cast<size_type> ( 0 != count );
         }
-
         [[maybe_unused]] level_iterator & operator++ ( ) {
             if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
@@ -403,10 +396,8 @@ struct rooted_tree_base {
                 return *this;
             }
         }
-
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ parent.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ parent.id ] ); }
-
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
         [[nodiscard]] size_type height ( ) const noexcept { return depth; }
@@ -414,9 +405,7 @@ struct rooted_tree_base {
 
     // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
     class const_level_iterator {
-
         friend struct rooted_tree_base;
-
         rooted_tree_base const & tree;
         id_deque queue;
         size_type max_depth, depth, count;
@@ -431,7 +420,6 @@ struct rooted_tree_base {
             count = static_cast<size_type> ( queue.size ( ) );
             depth = 1 + static_cast<size_type> ( 0 != count );
         }
-
         [[maybe_unused]] const_level_iterator & operator++ ( ) {
             if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
@@ -454,99 +442,77 @@ struct rooted_tree_base {
                 return *this;
             }
         }
-
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ parent.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ parent.id ] ); }
-
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
         [[nodiscard]] size_type height ( ) const noexcept { return depth; }
     };
 
     class out_iterator {
-
         friend struct rooted_tree_base;
-
         rooted_tree_base & tree;
         nid node;
 
         public:
         out_iterator ( rooted_tree_base & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
-
         [[maybe_unused]] out_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].prev;
             return *this;
         }
-
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
-
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
     class const_out_iterator {
-
         friend struct rooted_tree_base;
-
         rooted_tree_base const & tree;
         nid node;
 
         public:
         const_out_iterator ( rooted_tree_base const & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ tree[ node_.id ].tail } {}
-
         [[maybe_unused]] const_out_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].prev;
             return *this;
         }
-
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
-
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
     class up_iterator {
-
         friend struct rooted_tree_base;
-
         rooted_tree_base & tree;
         nid node;
 
         public:
         up_iterator ( rooted_tree_base & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ node_ } {}
-
         [[maybe_unused]] up_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].up;
             return *this;
         }
-
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
-
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
     class const_up_iterator {
-
         friend struct rooted_tree_base;
-
         rooted_tree_base const & tree;
         nid node;
 
         public:
         const_up_iterator ( rooted_tree_base const & tree_, nid node_ ) noexcept : tree{ tree_ }, node{ node_ } {}
-
         [[maybe_unused]] const_up_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].up;
             return *this;
         }
-
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
-
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };

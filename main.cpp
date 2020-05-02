@@ -98,12 +98,15 @@ int main ( ) {
     {
         std::cout << "sequential tree" << nl;
 
+        std::cout << std::is_move_constructible<typename SequentailTree::value_type>::value << nl;
+        std::cout << std::is_move_assignable<typename SequentailTree::value_type>::value << nl;
+
         SequentailTree tree;
         // tree.reserve ( 4'000'003 );
         tree.emplace ( SequentailTree ::invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
-        add_nodes ( tree, 4'000'001 );
+        add_nodes ( tree, 1'024 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
@@ -127,8 +130,8 @@ int main ( ) {
         timer.start ( );
         for ( int n = 0; n < 4; ++n )
             threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
-        for ( std::thread & tree : threads )
-            tree.join ( );
+        for ( std::thread & t : threads )
+            t.join ( );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
@@ -165,9 +168,6 @@ int main6576765 ( ) {
     sax::nid n11 = tree.emplace ( n2, 11 );
     sax::nid n12 = tree.emplace ( n2, 12 );
     sax::nid n13 = tree.emplace ( n12, 13 );
-
-    Tree::const_out_iterator it{ tree, Tree::root };
-    std::cout << *it << sp;
 
     exit ( 0 );
 
