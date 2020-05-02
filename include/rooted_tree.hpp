@@ -316,8 +316,7 @@ struct rooted_tree_base {
         }
         else {
             nid id{ static_cast<size_type> ( nodes.size ( ) ) };
-            nodes.push_back ( node_ );
-            value_type & target = nodes.back ( );
+            value_type & target = nodes.push_back ( node_ );
             target.up           = source_;
             value_type & source = nodes[ source_.id ];
             target.prev         = std::exchange ( source.tail, id );
