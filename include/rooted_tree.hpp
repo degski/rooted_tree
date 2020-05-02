@@ -135,17 +135,13 @@ inline constexpr int reserve_size = 1'024;
 
 // Hooks.
 
-template<bool>
-struct rooted_tree_base_hook {};
-
-template<>
-struct rooted_tree_base_hook<false> { // 16 bytes.
+struct rooted_tree_hook { // 16 bytes.
     nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
     int fan = 0; // 0 <= fan-out < 2'147'483'648.
 
 #if USE_IO
     template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const & node_ ) noexcept {
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_hook const & node_ ) noexcept {
         if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
             out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.fan << L'>';
         }
@@ -166,44 +162,23 @@ struct rooted_tree_base_hook<false> { // 16 bytes.
 #endif
 };
 
-template<>
-struct rooted_tree_base_hook<true> { // 16 bytes.
-    nid up, prev, tail;
-    short fan; // 0 <= fan-out < 32'768.
+template<typename Node>
+struct rooted_tree_node_mutex : public Node { // 2 bytes.
     tbb::spin_mutex mutex;
     tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
-
-#if USE_IO
-    template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_base_hook const & node_ ) noexcept {
-        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
-            out_ << L'<' << node_.up << L' ' << node_.prev << L' ' << node_.tail << L' ' << node_.fan << L'>';
-        }
-        else {
-            out_ << '<' << node_.up << ' ' << node_.prev << ' ' << node_.tail << ' ' << node_.fan << '>';
-        }
-        return out_;
-    }
-#endif
-
-#if USE_CEREAL
-    private:
-    friend class cereal::access;
-    template<class Archive>
-    inline void serialize ( Archive & ar_ ) {
-        ar_ ( up, prev, tail, fan );
-    }
-#endif
+    template<typename... Args>
+    rooted_tree_node_mutex ( Args &&... args_ ) : Node{ std::forward<Args> ( args_ )... } { };
 };
 
-// The tree has 1 (one, and only one,) root.
+// The rooted tree has 1 root.
 template<typename Node, bool Concurrent = false>
 struct rooted_tree_base {
 
-    using hook = rooted_tree_base_hook<Concurrent>;
+    using value_type = std::conditional_t<Concurrent, rooted_tree_node_mutex<Node>, Node>;
 
     private:
-    using node_vector = std::conditional_t<Concurrent, tbb::concurrent_vector<Node, tbb::zero_allocator<Node>>, std::vector<Node>>;
+    using node_vector = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
+                                           std::vector<value_type>>;
 
     public:
     struct dummy_mutex final {
@@ -234,7 +209,7 @@ struct rooted_tree_base {
     using scoped_lock     = std::conditional_t<Concurrent, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
     using size_type       = int;
     using difference_type = int;
-    using value_type      = typename node_vector::value_type;
+
     using reference       = typename node_vector::reference;
     using pointer         = typename node_vector::pointer;
     using iterator        = typename node_vector::iterator;
@@ -530,10 +505,6 @@ struct rooted_tree_base {
 
     node_vector nodes;
 
-    [[nodiscard]] static constexpr std::size_t max_fan_out ( ) noexcept {
-        return std::numeric_limits<decltype ( hook::fan )>::max ( );
-    }
-
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
     void await_construction ( nid node_ ) noexcept {
@@ -556,18 +527,15 @@ struct rooted_tree_base {
         ar_ ( nodes );
     }
 #endif
-}; // namespace detail
+};
 
 } // namespace detail
 
+using rooted_tree_hook = detail::rooted_tree_hook;
 template<typename Node>
-using rooted_tree      = detail::rooted_tree_base<Node, false>;
-using rooted_tree_hook = detail::rooted_tree_base_hook<false>;
-
+using rooted_tree = detail::rooted_tree_base<Node, false>;
 template<typename Node>
-using concurrent_rooted_tree      = detail::rooted_tree_base<Node, true>;
-using concurrent_rooted_tree_hook = detail::rooted_tree_base_hook<true>;
-
+using concurrent_rooted_tree = detail::rooted_tree_base<Node, true>;
 } // namespace sax
 
 #undef USE_CEREAL

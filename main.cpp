@@ -74,18 +74,17 @@ namespace Rng {
 
 sax::Rng & rng = Rng::generator ( );
 
-template<typename Hook>
-struct Foo : public Hook {
+struct Foo : public sax::rooted_tree_hook {
     int value                         = 0;
     Foo ( ) noexcept                  = default;
     Foo ( Foo const & foo_ ) noexcept = default;
 
-    explicit Foo ( int const & i_ ) noexcept : Hook ( ), value{ i_ } {}
-    explicit Foo ( int && i_ ) noexcept : Hook ( ), value{ std::move ( i_ ) } {}
+    explicit Foo ( int const & i_ ) noexcept : value{ i_ } {}
+    explicit Foo ( int && i_ ) noexcept : value{ std::move ( i_ ) } {}
 };
 
-using ConcurrentTree = sax::concurrent_rooted_tree<Foo<sax::concurrent_rooted_tree_hook>>;
-using SequentailTree = sax::rooted_tree<Foo<sax::rooted_tree_hook>>;
+using ConcurrentTree = sax::concurrent_rooted_tree<Foo>;
+using SequentailTree = sax::rooted_tree<Foo>;
 
 template<typename Tree>
 void add_nodes ( Tree & tree_, int n_ ) {
