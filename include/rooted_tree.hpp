@@ -39,28 +39,14 @@
 #include <utility>
 #include <vector>
 
-#if ( defined( __clang__ ) or defined( __GNUC__ ) )
-#    pragma GCC diagnostic push
-#    pragma GCC diagnostic ignored "-Wmicrosoft-enum-value"
-#endif
-#ifndef TBB_SUPPRESS_DEPRECATED_MESSAGES
-#    define UNDEF_TBB_SUPPRESS_DEPRECATED_MESSAGES
-#    define TBB_SUPPRESS_DEPRECATED_MESSAGES 1
-#endif
-#include <tbb/tbb.h>
-#if defined( UNDEF_TBB_SUPPRESS_DEPRECATED_MESSAGES )
-#    undef TBB_SUPPRESS_DEPRECATED_MESSAGES
-#    undef UNDEF_TBB_SUPPRESS_DEPRECATED_MESSAGES
-#endif
-#if ( defined( __clang__ ) or defined( __GNUC__ ) )
-#    pragma GCC diagnostic pop
-#endif
-
 #if ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER )
 #    include <deque>
 #else
 #    include <boost/container/deque.hpp>
 #endif
+
+#include <tbb/concurrent_vector.h> // tbb_config.h needs fizing to make this work with clang-cl.
+#include <tbb/spin_mutex.h>
 
 #if USE_CEREAL
 #    include <cereal/cereal.hpp>

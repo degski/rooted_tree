@@ -93,7 +93,7 @@ void add_nodes ( Tree & tree_, int n_ ) {
                         i );
 }
 
-int main7868787 ( ) {
+int main ( ) {
 
     {
         SequentailTree tree ( 1 );
@@ -134,7 +134,7 @@ int main7868787 ( ) {
     return EXIT_SUCCESS;
 }
 
-int main ( ) {
+int main56456 ( ) {
 
     SequentailTree tree ( 1 );
 
