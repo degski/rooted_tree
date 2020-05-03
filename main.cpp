@@ -86,47 +86,22 @@ struct Foo : public sax::rooted_tree_hook {
 using ConcurrentTree = sax::concurrent_rooted_tree<Foo>;
 using SequentailTree = sax::rooted_tree<Foo>;
 
-template<typename Vector>
-void add_nodes_vec ( Vector & vector_, int n_ ) {
-    for ( int i = 1; i < n_; ++i )
-        vector_.emplace_back (
-            sax::uniform_int_distribution<int> ( 1, static_cast<int> ( vector_.size ( ) ) - 1 ) ( rng ) ); // cost of rng equal
-}
-
 template<typename Tree>
-void add_nodes_seq ( Tree & tree_, int n_ ) {
-    for ( int i = 1; i < n_; ++i )
-        tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
-                        i );
-}
-
-template<typename Tree>
-void add_nodes_con ( Tree & tree_, int n_ ) {
-    // static std::atomic<int> id = 2;
+void add_nodes ( Tree & tree_, int n_ ) {
     for ( int i = 1; i < n_; ++i )
         tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
                         i );
 }
 
 int main ( ) {
-    /*
-    {
-        std::cout << "vector" << nl;
-        std::vector<int> vector;
-        plf::nanotimer timer;
-        timer.start ( );
-        add_nodes_vec ( vector, 4'000'003 );
-        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << vector.size ( ) << nl;
-    }
-    */
+
     {
         std::cout << "sequential tree" << nl;
         SequentailTree tree;
         tree.emplace ( SequentailTree ::invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
-        add_nodes_seq ( tree, 4'000'001 );
+        add_nodes ( tree, 4'000'001 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
@@ -149,7 +124,7 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
         for ( int n = 0; n < 4; ++n )
-            threads.emplace_back ( add_nodes_con<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
+            threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
         for ( std::thread & t : threads )
             t.join ( );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
