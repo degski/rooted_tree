@@ -166,7 +166,7 @@ struct rooted_tree_hook { // 16 bytes.
 template<typename Node>
 struct rooted_tree_node_mutex : public Node { // 2 bytes.
     tbb::spin_mutex lock;
-    tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
+    tbb::atomic<char const> done = 1; // Indicates node is constructed (and allocated with zeroed memory).
     template<typename... Args>
     rooted_tree_node_mutex ( Args &&... args_ ) : Node{ std::forward<Args> ( args_ )... } { };
 };
@@ -221,13 +221,10 @@ struct rooted_tree_base {
 
     rooted_tree_base ( ) {
         nodes.reserve ( reserve_size );
-        // Create invalid-node (node 0 (zero)).
-        if constexpr ( is_concurrent::value ) {
+        if constexpr ( is_concurrent::value )
             nodes.grow_by ( 1 );
-        }
-        else {
+        else
             nodes.emplace_back ( );
-        }
     }
 
     template<typename... Args>
@@ -264,53 +261,53 @@ struct rooted_tree_base {
         nodes[ invalid.id ].lock.unlock ( );
     };
 
-    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
-    [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
+    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to parent_ (once).
+    [[maybe_unused]] nid insert ( nid parent_, value_type && node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( std::move ( node_ ) );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
             unlock ( );
-            insert_impl ( source_, id, back );
+            insert_impl ( parent_, id, back );
             return id;
         }
         else {
             nid id = nid{ static_cast<size_type> ( nodes.size ( ) ) };
-            insert_impl ( source_, id, nodes.push_back ( std::move ( node_ ) ) );
+            insert_impl ( parent_, id, nodes.push_back ( std::move ( node_ ) ) );
             return id;
         }
     }
-    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
-    [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
+    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to parent_ (once).
+    [[maybe_unused]] nid insert ( nid parent_, value_type const & node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( node_ );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
             unlock ( );
-            insert_impl ( source_, id, back );
+            insert_impl ( parent_, id, back );
             return id;
         }
         else {
             nid id = nid{ static_cast<size_type> ( nodes.size ( ) ) };
-            insert_impl ( source_, id, nodes.push_back ( node_ ) );
+            insert_impl ( parent_, id, nodes.push_back ( node_ ) );
             return id;
         }
     }
 
-    // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
+    // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to parent_ (once).
     template<typename... Args>
-    [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
+    [[maybe_unused]] nid emplace ( nid parent_, Args &&... args_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
             unlock ( );
-            insert_impl ( source_, id, back );
+            insert_impl ( parent_, id, back );
             return id;
         }
         else {
             nid id = nid{ static_cast<size_type> ( nodes.size ( ) ) };
-            insert_impl ( source_, id, nodes.emplace_back ( std::forward<Args> ( args_ )... ) );
+            insert_impl ( parent_, id, nodes.emplace_back ( std::forward<Args> ( args_ )... ) );
             return id;
         }
     }
@@ -476,8 +473,8 @@ struct rooted_tree_base {
     };
 
     // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
-    // root-node) node down to the farthest leaf node.
-    [[nodiscard]] size_type height ( nid root_ = root, size_type * max_width_ = nullptr ) const {
+    // root-node) node down to the farthest leaf node. It returns (optionally) the width_ through an out-pointer.
+    [[nodiscard]] size_type height ( nid root_ = root, size_type * width_ = nullptr ) const {
         id_deque queue ( 1, root_ );
         size_type max_width = 0, depth = 0, count = 1;
         while ( count ) {
@@ -491,8 +488,8 @@ struct rooted_tree_base {
                 max_width = count;
             depth += 1;
         }
-        if ( max_width_ )
-            *max_width_ = max_width;
+        if ( width_ )
+            *width_ = max_width;
         return depth;
     }
 
@@ -501,24 +498,24 @@ struct rooted_tree_base {
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
     template<typename ReturnType>
-    void insert_impl ( nid source_, nid id_, ReturnType & target_ ) {
-        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
+    void insert_impl ( nid parent_, nid id_, ReturnType & target_ ) {
+        assert ( invalid != parent_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
         if constexpr ( is_concurrent::value ) {
             while ( id_.id >= nodes.size ( ) ) // await allocation.
                 std::this_thread::yield ( );
             while ( not nodes[ id_.id ].done ) // await construction.
                 std::this_thread::yield ( );
-            target_->up = source_;
+            target_->up = parent_;
             {
-                scoped_lock lock ( nodes[ source_.id ].lock );
-                target_->prev = std::exchange ( nodes[ source_.id ].tail, id_ );
-                nodes[ source_.id ].fan += 1;
+                scoped_lock lock ( nodes[ parent_.id ].lock );
+                target_->prev = std::exchange ( nodes[ parent_.id ].tail, id_ );
+                nodes[ parent_.id ].fan += 1;
             }
         }
         else {
-            target_.up   = source_;
-            target_.prev = std::exchange ( nodes[ source_.id ].tail, id_ );
-            nodes[ source_.id ].fan += 1;
+            target_.up   = parent_;
+            target_.prev = std::exchange ( nodes[ parent_.id ].tail, id_ );
+            nodes[ parent_.id ].fan += 1;
         }
     }
 
