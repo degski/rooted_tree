@@ -472,18 +472,23 @@ struct rooted_tree_base {
     };
 
     // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
-    // root-node) node down to the farthest leaf node.
-    [[nodiscard]] size_type height ( nid root_ = root ) const {
+    // root-node) node down to the farthest leaf node. It returns (optionally) the width_ through an out-pointer.
+    [[nodiscard]] size_type height ( nid root_ = root, size_type * width_ = nullptr ) const {
         id_deque queue ( 1, root_ );
-        size_type depth = 0, count = 0;
-        while ( ( count = static_cast<size_type> ( queue.size ( ) ) ) ) {
+        size_type max_width = 0, depth = 0, count = 1;
+        while ( count ) {
             while ( count-- ) {
                 nid parent = de ( queue );
                 for ( nid child = nodes[ parent.id ].tail; child.is_valid ( ); child = nodes[ child.id ].prev )
                     en ( queue, child );
             }
+            count = static_cast<size_type> ( queue.size ( ) );
+            if ( count > max_width )
+                max_width = count;
             depth += 1;
         }
+        if ( width_ )
+            *width_ = max_width;
         return depth;
     }
 
