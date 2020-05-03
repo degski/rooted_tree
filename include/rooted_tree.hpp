@@ -248,13 +248,17 @@ struct rooted_tree_base {
     void clear ( ) { nodes.clear ( ); }
     void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
 
+    void lock ( ) noexcept { nodes[ invalid.id ].lock.lock ( ); };
+    bool try_lock ( ) noexcept { return nodes[ invalid.id ].lock.try_lock ( ); };
+    void unlock ( ) noexcept { nodes[ invalid.id ].lock.unlock ( ); };
+
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
         if constexpr ( Concurrent ) {
-            nodes_mutex.lock ( );
+            lock ( );
             iterator back = nodes.push_back ( std::move ( node_ ) );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
-            nodes_mutex.unlock ( );
+            unlock ( );
             insert_impl ( source_, id, back );
             return id;
         }
@@ -267,10 +271,10 @@ struct rooted_tree_base {
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
         if constexpr ( Concurrent ) {
-            nodes_mutex.lock ( );
+            lock ( );
             iterator back = nodes.push_back ( node_ );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
-            nodes_mutex.unlock ( );
+            unlock ( );
             insert_impl ( source_, id, back );
             return id;
         }
@@ -285,10 +289,10 @@ struct rooted_tree_base {
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
         if constexpr ( Concurrent ) {
-            nodes_mutex.lock ( );
+            lock ( );
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
-            nodes_mutex.unlock ( );
+            unlock ( );
             insert_impl ( source_, id, back );
             return id;
         }
@@ -476,7 +480,6 @@ struct rooted_tree_base {
     }
 
     data nodes;
-    mutex nodes_mutex;
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 

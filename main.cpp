@@ -102,10 +102,10 @@ void add_nodes_seq ( Tree & tree_, int n_ ) {
 
 template<typename Tree>
 void add_nodes_con ( Tree & tree_, int n_ ) {
-    static std::atomic<int> id = 2;
+    // static std::atomic<int> id = 2;
     for ( int i = 1; i < n_; ++i )
         tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
-                        id++ );
+                        i );
 }
 
 int main ( ) {
