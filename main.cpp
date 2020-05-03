@@ -136,10 +136,9 @@ int main ( ) {
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << sum << nl;
         timer.start ( );
-        int wid           = 0;
-        std::uint64_t hei = tree.height ( tree.root, std::addressof ( wid ) );
+        std::uint64_t hei = tree.height ( );
         duration          = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << hei << sp << wid << nl;
+        std::cout << duration << "ms" << sp << hei << nl;
     }
 
     {
@@ -161,10 +160,10 @@ int main ( ) {
             sum += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << sum << nl;
-        int wid           = 0;
-        std::uint64_t hei = tree.height ( tree.root, std::addressof ( wid ) );
+        timer.start ( );
+        std::uint64_t hei = tree.height ( );
         duration          = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << hei << sp << wid << nl;
+        std::cout << duration << "ms" << sp << hei << nl;
     }
 
     return EXIT_SUCCESS;
