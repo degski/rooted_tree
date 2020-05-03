@@ -249,7 +249,7 @@ struct rooted_tree_base {
     void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
 
     void lock ( ) noexcept { nodes[ invalid.id ].lock.lock ( ); };
-    bool try_lock ( ) noexcept { return nodes[ invalid.id ].lock.try_lock ( ); };
+    [[nodiscard]] bool try_lock ( ) noexcept { return nodes[ invalid.id ].lock.try_lock ( ); };
     void unlock ( ) noexcept { nodes[ invalid.id ].lock.unlock ( ); };
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
