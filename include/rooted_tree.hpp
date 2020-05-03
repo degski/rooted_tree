@@ -324,9 +324,9 @@ struct rooted_tree_base {
         else {
             nid id              = make_nid ( );
             value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+            target.up           = source_;
+            target.prev         = std::exchange ( nodes[ source_.id ].tail, id );
             nodes[ source_.id ].fan += 1;
-            target.up   = source_;
-            target.prev = std::exchange ( nodes[ source_.id ].tail, id );
             return id;
         }
     }
