@@ -177,9 +177,8 @@ struct rooted_tree_base {
     using value_type = std::conditional_t<Concurrent, rooted_tree_node_mutex<Node>, Node>;
 
     private:
-    using data      = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
+    using data = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
                                     std::vector<value_type>>;
-    using data_size = int;
 
     public:
     struct dummy_mutex final {
@@ -244,11 +243,13 @@ struct rooted_tree_base {
     [[nodiscard]] value_type const & operator[] ( nid node_ ) const noexcept { return nodes[ node_.id ]; }
     [[nodiscard]] value_type & operator[] ( size_type node_ ) noexcept { return nodes[ node_ ]; }
     [[nodiscard]] value_type const & operator[] ( size_type node_ ) const noexcept { return nodes[ node_ ]; }
+
     void reserve ( size_type c_ ) { nodes.reserve ( c_ ); }
+    void clear ( ) { nodes.clear ( ); }
+    void swap ( rooted_tree_base & rhs_ ) noexcept { this->nodes.swap ( rhs_.nodes ); }
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
-        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
             nodes_mutex.lock ( );
             iterator back = nodes.push_back ( std::move ( node_ ) );
@@ -265,7 +266,6 @@ struct rooted_tree_base {
     }
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
-        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
             nodes_mutex.lock ( );
             iterator back = nodes.push_back ( node_ );
@@ -284,7 +284,6 @@ struct rooted_tree_base {
     // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
-        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
             nodes_mutex.lock ( );
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
