@@ -109,7 +109,7 @@ void add_nodes_con ( Tree & tree_, int n_ ) {
 }
 
 int main ( ) {
-
+    /*
     {
         std::cout << "vector" << nl;
         std::vector<int> vector;
@@ -119,7 +119,7 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vector.size ( ) << nl;
     }
-
+    */
     {
         std::cout << "sequential tree" << nl;
         SequentailTree tree;
