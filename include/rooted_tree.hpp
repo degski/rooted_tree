@@ -164,10 +164,14 @@ struct rooted_tree_hook { // 16 bytes.
 
 template<typename Node>
 struct rooted_tree_node_mutex : public Node { // 2 bytes.
-    tbb::spin_mutex mutex;
-    tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
     template<typename... Args>
     rooted_tree_node_mutex ( Args &&... args_ ) : Node{ std::forward<Args> ( args_ )... } { };
+    tbb::spin_mutex mutex;
+
+    private:
+    template<typename, bool>
+    friend struct rooted_tree_base;
+    tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
 };
 
 // The rooted tree has 1 root.
@@ -250,8 +254,8 @@ struct rooted_tree_base {
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
+            nid id          = make_nid ( );
             iterator target = nodes.push_back ( std::move ( node_ ) );
-            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
             await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
@@ -263,7 +267,7 @@ struct rooted_tree_base {
             return id;
         }
         else {
-            nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+            nid id = make_nid ( );
             nodes.push_back ( std::move ( node_ ) );
             value_type & target = nodes.back ( );
             target.up           = source_;
@@ -277,8 +281,8 @@ struct rooted_tree_base {
     [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
+            nid id          = make_nid ( );
             iterator target = nodes.push_back ( node_ );
-            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
             await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
@@ -290,7 +294,7 @@ struct rooted_tree_base {
             return id;
         }
         else {
-            nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+            nid id              = make_nid ( );
             value_type & target = nodes.push_back ( node_ );
             target.up           = source_;
             value_type & source = nodes[ source_.id ];
@@ -305,8 +309,8 @@ struct rooted_tree_base {
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
+            nid id          = make_nid ( );
             iterator target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
             await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
@@ -318,7 +322,7 @@ struct rooted_tree_base {
             return id;
         }
         else {
-            nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+            nid id              = make_nid ( );
             value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nodes[ source_.id ].fan += 1;
             target.up   = source_;
@@ -507,16 +511,24 @@ struct rooted_tree_base {
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
-    void await_construction ( nid node_ ) noexcept {
+    private:
+    nid make_nid ( ) const noexcept {
         if constexpr ( Concurrent ) {
-            while ( node_.id >= static_cast<size_type> ( nodes.size ( ) ) ) // Wait allocation.
-                std::this_thread::yield ( );
-            while ( not nodes[ static_cast<typename node_vector::size_type> ( node_.id ) ].done ) // Wait construction.
-                std::this_thread::yield ( );
+            static tbb::atomic<size_type> id = 0;
+            return nid{ ++id };
         }
         else {
-            // noop.
+            static size_type id = 0;
+            return nid{ ++id };
         }
+    }
+
+    void await_construction ( nid node_ ) noexcept {
+        typename node_vector::size_type expected_size = node_.id;
+        while ( expected_size >= nodes.size ( ) ) // Wait allocation.
+            std::this_thread::yield ( );
+        while ( not nodes[ node_.id ].done ) // Wait construction.
+            std::this_thread::yield ( );
     }
 
 #if USE_CEREAL
@@ -527,7 +539,7 @@ struct rooted_tree_base {
         ar_ ( nodes );
     }
 #endif
-};
+}; // namespace detail
 
 } // namespace detail
 
