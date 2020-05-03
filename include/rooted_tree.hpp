@@ -310,22 +310,13 @@ struct rooted_tree_base {
             nid id          = make_nid ( );
             iterator target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             mutex.unlock ( );
-            await_construction ( id );
-            target->up.id       = source_.id;
-            value_type & source = nodes[ source_.id ];
-            {
-                scoped_lock lock ( source.mutex );
-                target->prev = std::exchange ( source.tail, id );
-                source.fan += 1;
-            }
+            insert_impl ( source_, id, target );
             return id;
         }
         else {
             nid id{ static_cast<size_type> ( nodes.size ( ) ) };
             value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            target.up           = source_;
-            target.prev         = std::exchange ( nodes[ source_.id ].tail, id );
-            nodes[ source_.id ].fan += 1;
+            insert_impl ( source_, id, target );
             return id;
         }
     }
@@ -511,12 +502,25 @@ struct rooted_tree_base {
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
-    void await_construction ( nid node_ ) noexcept {
+    template<typename ReturnType>
+    void insert_impl ( nid source_, nid id_, ReturnType & target_ ) {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
         if constexpr ( Concurrent ) {
-            while ( node_.id >= nodes.size ( ) ) // await allocation.
+            while ( id_.id >= nodes.size ( ) ) // await allocation.
                 std::this_thread::yield ( );
-            while ( not nodes[ node_.id ].done ) // await construction.
+            while ( not nodes[ id_.id ].done ) // await construction.
                 std::this_thread::yield ( );
+            target_->up = source_;
+            {
+                scoped_lock lock ( nodes[ source_.id ].mutex );
+                target_->prev = std::exchange ( nodes[ source_.id ].tail, id_ );
+                nodes[ source_.id ].fan += 1;
+            }
+        }
+        else {
+            target_.up   = source_;
+            target_.prev = std::exchange ( nodes[ source_.id ].tail, id_ );
+            nodes[ source_.id ].fan += 1;
         }
     }
 
