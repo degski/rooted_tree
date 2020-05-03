@@ -179,7 +179,7 @@ struct rooted_tree_base {
     private:
     using data      = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
                                     std::vector<value_type>>;
-    using data_size = std::conditional_t<Concurrent, tbb::atomic<int>, int>;
+    using data_size = int;
 
     public:
     struct dummy_mutex final {
@@ -305,8 +305,11 @@ struct rooted_tree_base {
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
+            static tbb::spin_mutex mutex;
+            mutex.lock ( );
+            nid id          = make_nid ( );
             iterator target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            mutex.unlock ( );
             await_construction ( id );
             target->up.id       = source_.id;
             value_type & source = nodes[ source_.id ];
@@ -516,6 +519,8 @@ struct rooted_tree_base {
                 std::this_thread::yield ( );
         }
     }
+
+    [[nodiscard]] nid make_nid ( ) noexcept { return nid{ nodes_size++ }; }
 
 #if USE_CEREAL
     private:
