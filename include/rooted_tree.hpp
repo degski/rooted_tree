@@ -246,7 +246,7 @@ struct rooted_tree_base {
 
     void reserve ( size_type c_ ) { nodes.reserve ( c_ ); }
     void clear ( ) { nodes.clear ( ); }
-    void swap ( rooted_tree_base & rhs_ ) noexcept { this->nodes.swap ( rhs_.nodes ); }
+    void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
