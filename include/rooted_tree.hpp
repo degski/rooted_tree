@@ -36,6 +36,7 @@
 #endif
 
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -174,10 +175,12 @@ struct rooted_tree_node_mutex : public Node { // 2 bytes.
 template<typename Node, bool Concurrent = false>
 struct rooted_tree_base {
 
-    using value_type = std::conditional_t<Concurrent, rooted_tree_node_mutex<Node>, Node>;
+    using is_concurrent = std::integral_constant<bool, Concurrent>;
+
+    using value_type = std::conditional_t<is_concurrent::value, rooted_tree_node_mutex<Node>, Node>;
 
     private:
-    using data = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
+    using data = std::conditional_t<is_concurrent::value, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
                                     std::vector<value_type>>;
 
     public:
@@ -205,8 +208,8 @@ struct rooted_tree_base {
         dummy_scoped_lock & operator= ( dummy_scoped_lock && ) noexcept = default;
     };
 
-    using mutex           = std::conditional_t<Concurrent, tbb::spin_mutex, dummy_mutex>;
-    using scoped_lock     = std::conditional_t<Concurrent, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
+    using mutex           = std::conditional_t<is_concurrent::value, tbb::spin_mutex, dummy_mutex>;
+    using scoped_lock     = std::conditional_t<is_concurrent::value, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
     using size_type       = int;
     using difference_type = int;
     using reference       = typename data::reference;
@@ -219,7 +222,7 @@ struct rooted_tree_base {
     rooted_tree_base ( ) {
         nodes.reserve ( reserve_size );
         // Create invalid-node (node 0 (zero)).
-        if constexpr ( Concurrent ) {
+        if constexpr ( is_concurrent::value ) {
             nodes.grow_by ( 1 );
         }
         else {
@@ -248,13 +251,22 @@ struct rooted_tree_base {
     void clear ( ) { nodes.clear ( ); }
     void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
 
-    void lock ( ) noexcept { nodes[ invalid.id ].lock.lock ( ); };
-    [[nodiscard]] bool try_lock ( ) noexcept { return nodes[ invalid.id ].lock.try_lock ( ); };
-    void unlock ( ) noexcept { nodes[ invalid.id ].lock.unlock ( ); };
+    template<bool C = is_concurrent::value>
+    std::enable_if_t<C> lock ( ) noexcept {
+        nodes[ invalid.id ].lock.lock ( );
+    };
+    template<bool C = is_concurrent::value>
+    [[nodiscard]] std::enable_if_t<C, bool> try_lock ( ) noexcept {
+        return nodes[ invalid.id ].lock.try_lock ( );
+    };
+    template<bool C = is_concurrent::value>
+    std::enable_if_t<C> unlock ( ) noexcept {
+        nodes[ invalid.id ].lock.unlock ( );
+    };
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
-        if constexpr ( Concurrent ) {
+        if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( std::move ( node_ ) );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
@@ -270,7 +282,7 @@ struct rooted_tree_base {
     }
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
     [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
-        if constexpr ( Concurrent ) {
+        if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( node_ );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
@@ -288,7 +300,7 @@ struct rooted_tree_base {
     // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
-        if constexpr ( Concurrent ) {
+        if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
@@ -486,7 +498,7 @@ struct rooted_tree_base {
     template<typename ReturnType>
     void insert_impl ( nid source_, nid id_, ReturnType & target_ ) {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
-        if constexpr ( Concurrent ) {
+        if constexpr ( is_concurrent::value ) {
             while ( id_.id >= nodes.size ( ) ) // await allocation.
                 std::this_thread::yield ( );
             while ( not nodes[ id_.id ].done ) // await construction.
