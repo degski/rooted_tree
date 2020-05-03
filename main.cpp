@@ -109,7 +109,7 @@ int main ( ) {
         tree.emplace ( SequentailTree ::invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
-        add_nodes_seq ( tree, 40'001 );
+        add_nodes_seq ( tree, 4'000'001 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
@@ -132,18 +132,11 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
         for ( int n = 0; n < 4; ++n )
-            threads.emplace_back ( add_nodes_con<ConcurrentTree>, std::ref ( tree ), 10'001 );
+            threads.emplace_back ( add_nodes_con<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
         for ( std::thread & t : threads )
             t.join ( );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
-
-        for ( auto & v : tree )
-            std::cout << v.value << sp;
-        std::cout << nl;
-
-        exit ( 0 );
-
         timer.start ( );
         std::uint64_t sum = 1;
         for ( ConcurrentTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )

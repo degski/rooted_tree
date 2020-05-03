@@ -164,14 +164,10 @@ struct rooted_tree_hook { // 16 bytes.
 
 template<typename Node>
 struct rooted_tree_node_mutex : public Node { // 2 bytes.
+    tbb::spin_mutex mutex;
+    tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
     template<typename... Args>
     rooted_tree_node_mutex ( Args &&... args_ ) : Node{ std::forward<Args> ( args_ )... } { };
-    tbb::spin_mutex mutex;
-
-    private:
-    template<typename, bool>
-    friend struct rooted_tree_base;
-    tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
 };
 
 // The rooted tree has 1 root.
@@ -181,8 +177,9 @@ struct rooted_tree_base {
     using value_type = std::conditional_t<Concurrent, rooted_tree_node_mutex<Node>, Node>;
 
     private:
-    using node_vector = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
-                                           std::vector<value_type>>;
+    using data      = std::conditional_t<Concurrent, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
+                                    std::vector<value_type>>;
+    using data_size = std::conditional_t<Concurrent, tbb::atomic<int>, int>;
 
     public:
     struct dummy_mutex final {
@@ -213,15 +210,14 @@ struct rooted_tree_base {
     using scoped_lock     = std::conditional_t<Concurrent, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
     using size_type       = int;
     using difference_type = int;
+    using reference       = typename data::reference;
+    using pointer         = typename data::pointer;
+    using iterator        = typename data::iterator;
+    using const_reference = typename data::const_reference;
+    using const_pointer   = typename data::const_pointer;
+    using const_iterator  = typename data::const_iterator;
 
-    using reference       = typename node_vector::reference;
-    using pointer         = typename node_vector::pointer;
-    using iterator        = typename node_vector::iterator;
-    using const_reference = typename node_vector::const_reference;
-    using const_pointer   = typename node_vector::const_pointer;
-    using const_iterator  = typename node_vector::const_iterator;
-
-    rooted_tree_base ( ) {
+    rooted_tree_base ( ) : nodes_size ( 1 ) {
         nodes.reserve ( reserve_size );
         // Create invalid-node (node 0 (zero)).
         if constexpr ( Concurrent ) {
@@ -251,23 +247,84 @@ struct rooted_tree_base {
     void reserve ( size_type c_ ) { nodes.reserve ( c_ ); }
 
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
-    [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) {
-        nid id = make_nid ( );
-        insert_impl ( source_, id, nodes.push_back ( std::move ( node_ ) ) );
-        return id;
+    [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
+        if constexpr ( Concurrent ) {
+            iterator target = nodes.push_back ( std::move ( node_ ) );
+            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            await_construction ( id );
+            target->up.id       = source_.id;
+            value_type & source = nodes[ source_.id ];
+            {
+                scoped_lock lock ( source.mutex );
+                target->prev = std::exchange ( source.tail, id );
+                source.fan += 1;
+            }
+            return id;
+        }
+        else {
+            nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+            nodes.push_back ( std::move ( node_ ) );
+            value_type & target = nodes.back ( );
+            target.up           = source_;
+            value_type & source = nodes[ source_.id ];
+            target.prev         = std::exchange ( source.tail, id );
+            source.fan += 1;
+            return id;
+        }
     }
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
-    [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) {
-        nid id = make_nid ( );
-        insert_impl ( source_, id, nodes.push_back ( node_ ) );
-        return id;
+    [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
+        if constexpr ( Concurrent ) {
+            iterator target = nodes.push_back ( node_ );
+            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            await_construction ( id );
+            target->up.id       = source_.id;
+            value_type & source = nodes[ source_.id ];
+            {
+                scoped_lock lock ( source.mutex );
+                target->prev = std::exchange ( source.tail, id );
+                source.fan += 1;
+            }
+            return id;
+        }
+        else {
+            nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+            value_type & target = nodes.push_back ( node_ );
+            target.up           = source_;
+            value_type & source = nodes[ source_.id ];
+            target.prev         = std::exchange ( source.tail, id );
+            source.fan += 1;
+            return id;
+        }
     }
+
     // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
     template<typename... Args>
-    [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) {
-        nid id = make_nid ( );
-        insert_impl ( source_, id, nodes.emplace_back ( std::forward<Args> ( args_ )... ) );
-        return id;
+    [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
+        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
+        if constexpr ( Concurrent ) {
+            iterator target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+            nid id{ static_cast<size_type> ( std::distance ( begin ( ), target ) ) };
+            await_construction ( id );
+            target->up.id       = source_.id;
+            value_type & source = nodes[ source_.id ];
+            {
+                scoped_lock lock ( source.mutex );
+                target->prev = std::exchange ( source.tail, id );
+                source.fan += 1;
+            }
+            return id;
+        }
+        else {
+            nid id{ static_cast<size_type> ( nodes.size ( ) ) };
+            value_type & target = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+            target.up           = source_;
+            target.prev         = std::exchange ( nodes[ source_.id ].tail, id );
+            nodes[ source_.id ].fan += 1;
+            return id;
+        }
     }
 
     // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
@@ -430,8 +487,6 @@ struct rooted_tree_base {
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
 
-    [[nodiscard]] size_type size ( ) const noexcept { return make_nid_size_impl ( false ).id; }
-
     // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
     // root-node) node down to the farthest leaf node.
     [[nodiscard]] size_type height ( nid root_ = root ) const {
@@ -448,48 +503,17 @@ struct rooted_tree_base {
         return depth;
     }
 
-    node_vector nodes;
+    data nodes;
+    data_size nodes_size = 1;
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
-    private:
-    [[nodiscard]] nid make_nid_size_impl ( bool create ) const noexcept {
-        if constexpr ( Concurrent ) {
-            static tbb::atomic<size_type> id = 1;
-            return create ? nid{ id++ } : nid{ id - 1 };
-        }
-        else {
-            static size_type id = 1;
-            return create ? nid{ id++ } : nid{ id - 1 };
-        }
-    }
-
-    [[nodiscard]] nid make_nid ( ) noexcept { return std::as_const ( *this ).make_nid_size_impl ( true ); }
-
     void await_construction ( nid node_ ) noexcept {
-        typename node_vector::size_type expected_size = node_.id;
-        while ( expected_size >= nodes.size ( ) ) // Wait allocation.
-            std::this_thread::yield ( );
-        while ( not nodes[ node_.id ].done ) // Wait construction.
-            std::this_thread::yield ( );
-    }
-
-    template<typename ReturnType>
-    void insert_impl ( nid source_, nid id_, ReturnType target_ ) {
-        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // Check root only added once.
         if constexpr ( Concurrent ) {
-            await_construction ( id_ );
-            target_->up = source_;
-            {
-                scoped_lock lock ( nodes[ source_.id ].mutex );
-                target_->prev = std::exchange ( nodes[ source_.id ].tail, id_ );
-                nodes[ source_.id ].fan += 1;
-            }
-        }
-        else {
-            target_.up   = source_;
-            target_.prev = std::exchange ( nodes[ source_.id ].tail, id_ );
-            nodes[ source_.id ].fan += 1;
+            while ( node_.id >= nodes.size ( ) ) // await allocation.
+                std::this_thread::yield ( );
+            while ( not nodes[ node_.id ].done ) // await construction.
+                std::this_thread::yield ( );
         }
     }
 
@@ -501,7 +525,7 @@ struct rooted_tree_base {
         ar_ ( nodes );
     }
 #endif
-}; // namespace detail
+};
 
 } // namespace detail
 
