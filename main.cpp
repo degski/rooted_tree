@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include <array>
 #include <atomic>
 #include <type_traits>
 
@@ -87,7 +88,22 @@ using ConcurrentTree = sax::concurrent_rooted_tree<Foo>;
 using SequentailTree = sax::rooted_tree<Foo>;
 
 template<typename Tree>
-void add_nodes ( Tree & tree_, int n_ ) {
+void add_nodes_high_workload ( Tree & tree_, int n_ ) {
+    for ( int i = 1; i < n_; ++i ) {
+        // Some piecewise distibution, simulating more 'normal' use case, where new nodes are added more often at
+        // the bottom. It is also **very** expensive to calculate, so gives some sensible workload, which helps
+        // to get a better idea of performance, as contention is much lower (like in real use cases) as compared
+        // to add_nodes_low_work_load().
+        auto back                         = tree_.nodes.size ( );
+        std::array<float, 4> ai           = { 1.0f, back / 2.0f, 2 * back / 3.0f, static_cast<float> ( back - 1 ) };
+        constexpr std::array<float, 3> aw = { 1, 3, 9 };
+        int n = static_cast<int> ( std::piecewise_constant_distribution<float> ( ai.begin ( ), ai.end ( ), aw.begin ( ) ) ( rng ) );
+        tree_.emplace ( sax::nid{ n }, i );
+    }
+}
+
+template<typename Tree>
+void add_nodes_low_work_load ( Tree & tree_, int n_ ) {
     for ( int i = 1; i < n_; ++i )
         tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
                         i );
@@ -98,22 +114,22 @@ int main ( ) {
     {
         std::cout << "sequential tree" << nl;
         SequentailTree tree;
-        tree.emplace ( SequentailTree ::invalid, 1 );
+        tree.emplace ( tree.invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
-        add_nodes ( tree, 4'000'001 );
+        add_nodes_high_workload ( tree, 400'001 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
-        std::uint64_t sum = 1;
+        int sum = 1;
         for ( SequentailTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
             sum += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << sum << nl;
         timer.start ( );
-        std::uint64_t hei = tree.height ( );
-        duration          = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << hei << nl;
+        int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << hei << sp << wid << nl;
     }
 
     {
@@ -124,21 +140,21 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
         for ( int n = 0; n < 4; ++n )
-            threads.emplace_back ( add_nodes<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
+            threads.emplace_back ( add_nodes_high_workload<ConcurrentTree>, std::ref ( tree ), 100'001 );
         for ( std::thread & t : threads )
             t.join ( );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
-        std::uint64_t sum = 1;
+        int sum = 1;
         for ( ConcurrentTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
             sum += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << sum << nl;
         timer.start ( );
-        std::uint64_t hei = tree.height ( );
-        duration          = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << hei << nl;
+        int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << hei << sp << wid << nl;
     }
 
     return EXIT_SUCCESS;

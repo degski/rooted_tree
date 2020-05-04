@@ -247,16 +247,16 @@ struct rooted_tree_base {
     void clear ( ) { nodes.clear ( ); }
     void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
 
-    template<typename T = is_concurrent>
-    std::enable_if_t<T::value> lock ( ) noexcept {
+    template<typename This = is_concurrent>
+    std::enable_if_t<This::value> lock ( ) noexcept {
         nodes[ invalid.id ].lock.lock ( );
     };
-    template<typename T = is_concurrent>
-    [[nodiscard]] std::enable_if_t<T::value, bool> try_lock ( ) noexcept {
+    template<typename This = is_concurrent>
+    [[nodiscard]] std::enable_if_t<This::value, bool> try_lock ( ) noexcept {
         return nodes[ invalid.id ].lock.try_lock ( );
     };
-    template<typename T = is_concurrent>
-    std::enable_if_t<T::value> unlock ( ) noexcept {
+    template<typename This = is_concurrent>
+    std::enable_if_t<This::value> unlock ( ) noexcept {
         nodes[ invalid.id ].lock.unlock ( );
     };
 
