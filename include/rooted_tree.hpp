@@ -142,12 +142,12 @@ struct rooted_tree_hook { // 16 bytes.
 
 #if USE_IO
     template<typename Stream>
-    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_hook const & no_id_ ) noexcept {
+    [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_hook const & nid_ ) noexcept {
         if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
-            out_ << L'<' << no_id_.up << L' ' << no_id_.prev << L' ' << no_id_.tail << L' ' << no_id_.fan << L'>';
+            out_ << L'<' << nid_.up << L' ' << nid_.prev << L' ' << nid_.tail << L' ' << nid_.fan << L'>';
         }
         else {
-            out_ << '<' << no_id_.up << ' ' << no_id_.prev << ' ' << no_id_.tail << ' ' << no_id_.fan << '>';
+            out_ << '<' << nid_.up << ' ' << nid_.prev << ' ' << nid_.tail << ' ' << nid_.fan << '>';
         }
         return out_;
     }
@@ -239,10 +239,10 @@ struct rooted_tree_base {
     [[nodiscard]] const_iterator end ( ) const noexcept { return nodes.end ( ); }
     [[nodiscard]] const_iterator cend ( ) const noexcept { return nodes.cend ( ); }
     [[nodiscard]] iterator end ( ) noexcept { return nodes.end ( ); }
-    [[nodiscard]] value_type & operator[] ( nid no_id_ ) noexcept { return nodes[ no_id_.id ]; }
-    [[nodiscard]] value_type const & operator[] ( nid no_id_ ) const noexcept { return nodes[ no_id_.id ]; }
-    [[nodiscard]] value_type & operator[] ( size_type no_id_ ) noexcept { return nodes[ no_id_ ]; }
-    [[nodiscard]] value_type const & operator[] ( size_type no_id_ ) const noexcept { return nodes[ no_id_ ]; }
+    [[nodiscard]] value_type & operator[] ( nid nid_ ) noexcept { return nodes[ nid_.id ]; }
+    [[nodiscard]] value_type const & operator[] ( nid nid_ ) const noexcept { return nodes[ nid_.id ]; }
+    [[nodiscard]] value_type & operator[] ( size_type nid_ ) noexcept { return nodes[ nid_ ]; }
+    [[nodiscard]] value_type const & operator[] ( size_type nid_ ) const noexcept { return nodes[ nid_ ]; }
 
     // Not safe/concurrent.
     void reserve ( size_type c_ ) { nodes.reserve ( c_ ); }
@@ -267,45 +267,45 @@ struct rooted_tree_base {
         nodes[ invalid.id ].lock.unlock ( );
     };
 
-    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pa_id_.
-    [[maybe_unused]] nid insert ( nid pa_id_, value_type && node_ ) noexcept {
+    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
+    [[maybe_unused]] nid insert ( nid pid_, value_type && node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator ch_node = nodes.push_back ( std::move ( node_ ) );
-            nid ch_id        = nid{ size ( )++ };
+            nid cid          = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( pa_id_, ch_node, ch_id );
+            return insert_impl ( pid_, ch_node, cid );
         }
         else {
-            return insert_impl ( pa_id_, nodes.push_back ( std::move ( node_ ) ), nid{ size ( )++ } );
+            return insert_impl ( pid_, nodes.push_back ( std::move ( node_ ) ), nid{ size ( )++ } );
         }
     }
-    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pa_id_.
-    [[maybe_unused]] nid insert ( nid pa_id_, value_type const & node_ ) noexcept {
+    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
+    [[maybe_unused]] nid insert ( nid pid_, value_type const & node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator ch_node = nodes.push_back ( node_ );
-            nid ch_id        = nid{ size ( )++ };
+            nid cid          = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( pa_id_, ch_node, ch_id );
+            return insert_impl ( pid_, ch_node, cid );
         }
         else {
-            return insert_impl ( pa_id_, nodes.push_back ( node_ ), nid{ size ( )++ } );
+            return insert_impl ( pid_, nodes.push_back ( node_ ), nid{ size ( )++ } );
         }
     }
 
-    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pa_id_.
+    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
     template<typename... Args>
-    [[maybe_unused]] nid emplace ( nid pa_id_, Args &&... args_ ) noexcept {
+    [[maybe_unused]] nid emplace ( nid pid_, Args &&... args_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator ch_node = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            nid ch_id        = nid{ size ( )++ };
+            nid cid          = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( pa_id_, ch_node, ch_id );
+            return insert_impl ( pid_, ch_node, cid );
         }
         else {
-            return insert_impl ( pa_id_, nodes.emplace_back ( std::forward<Args> ( args_ )... ), nid{ size ( )++ } );
+            return insert_impl ( pid_, nodes.emplace_back ( std::forward<Args> ( args_ )... ), nid{ size ( )++ } );
         }
     }
 
@@ -318,8 +318,8 @@ struct rooted_tree_base {
         nid parent;
 
         public:
-        level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid no_id_ = rooted_tree_base::root ) :
-            tree{ tree_ }, max_depth{ max_depth_ }, parent{ no_id_ } {
+        level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid nid_ = rooted_tree_base::root ) :
+            tree{ tree_ }, max_depth{ max_depth_ }, parent{ nid_ } {
             if ( ( not max_depth ) or ( max_depth > 1 ) )
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
@@ -364,8 +364,8 @@ struct rooted_tree_base {
         nid parent;
 
         public:
-        const_level_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0, nid no_id_ = rooted_tree_base::root ) :
-            tree{ tree_ }, max_depth{ max_depth_ }, parent{ no_id_ } {
+        const_level_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0, nid nid_ = rooted_tree_base::root ) :
+            tree{ tree_ }, max_depth{ max_depth_ }, parent{ nid_ } {
             if ( ( not max_depth ) or ( max_depth > 1 ) )
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     en ( queue, child );
@@ -407,7 +407,7 @@ struct rooted_tree_base {
         nid node;
 
         public:
-        out_iterator ( rooted_tree_base & tree_, nid no_id_ ) noexcept : tree{ tree_ }, node{ tree[ no_id_.id ].tail } {}
+        out_iterator ( rooted_tree_base & tree_, nid nid_ ) noexcept : tree{ tree_ }, node{ tree[ nid_.id ].tail } {}
         [[maybe_unused]] out_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].prev;
             return *this;
@@ -424,8 +424,7 @@ struct rooted_tree_base {
         nid node;
 
         public:
-        const_out_iterator ( rooted_tree_base const & tree_, nid no_id_ ) noexcept :
-            tree{ tree_ }, node{ tree[ no_id_.id ].tail } {}
+        const_out_iterator ( rooted_tree_base const & tree_, nid nid_ ) noexcept : tree{ tree_ }, node{ tree[ nid_.id ].tail } {}
         [[maybe_unused]] const_out_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].prev;
             return *this;
@@ -442,7 +441,7 @@ struct rooted_tree_base {
         nid node;
 
         public:
-        up_iterator ( rooted_tree_base & tree_, nid no_id_ ) noexcept : tree{ tree_ }, node{ no_id_ } {}
+        up_iterator ( rooted_tree_base & tree_, nid nid_ ) noexcept : tree{ tree_ }, node{ nid_ } {}
         [[maybe_unused]] up_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].up;
             return *this;
@@ -459,7 +458,7 @@ struct rooted_tree_base {
         nid node;
 
         public:
-        const_up_iterator ( rooted_tree_base const & tree_, nid no_id_ ) noexcept : tree{ tree_ }, node{ no_id_ } {}
+        const_up_iterator ( rooted_tree_base const & tree_, nid nid_ ) noexcept : tree{ tree_ }, node{ nid_ } {}
         [[maybe_unused]] const_up_iterator & operator++ ( ) noexcept {
             node = tree[ node.id ].up;
             return *this;
@@ -472,8 +471,8 @@ struct rooted_tree_base {
 
     // The (maximum) depth (or height) is the number of nodes along the longest path from the (by default
     // root-node) node down to the farthest leaf node. It returns (optionally) the width_ through an out-pointer.
-    [[nodiscard]] size_type height ( nid root_id_ = root, size_type * width_ = nullptr ) const {
-        id_deque queue ( 1, root_id_ );
+    [[nodiscard]] size_type height ( nid rid_ = root, size_type * width_ = nullptr ) const {
+        id_deque queue ( 1, rid_ );
         size_type max_width = 0, depth = 0, count = 1;
         while ( count ) {
             while ( count-- ) {
@@ -499,24 +498,24 @@ struct rooted_tree_base {
     [[nodiscard]] size_type & size ( ) noexcept { return nodes[ invalid.id ].up.id; }
 
     template<typename AccessType>
-    [[nodiscard]] nid insert_impl ( nid pa_id_, AccessType & ch_node_, nid ch_id_ ) {
-        assert ( invalid != pa_id_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
+    [[nodiscard]] nid insert_impl ( nid pid_, AccessType & cnode_, nid cid_ ) {
+        assert ( invalid != pid_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
         if constexpr ( is_concurrent::value ) {
-            while ( ch_id_.id >= nodes.size ( ) ) // await allocation.
+            while ( cid_.id >= nodes.size ( ) ) // await allocation.
                 std::this_thread::yield ( );
-            while ( not nodes[ ch_id_.id ].done ) // await construction.
+            while ( not nodes[ cid_.id ].done ) // await construction.
                 std::this_thread::yield ( );
-            ch_node_->up = pa_id_;
-            scoped_lock lock ( nodes[ pa_id_.id ].lock );
-            ch_node_->prev = std::exchange ( nodes[ pa_id_.id ].tail, ch_id_ );
-            nodes[ pa_id_.id ].fan += 1;
-            return ch_id_;
+            cnode_->up = pid_;
+            scoped_lock lock ( nodes[ pid_.id ].lock );
+            cnode_->prev = std::exchange ( nodes[ pid_.id ].tail, cid_ );
+            nodes[ pid_.id ].fan += 1;
+            return cid_;
         }
         else {
-            ch_node_.up   = pa_id_;
-            ch_node_.prev = std::exchange ( nodes[ pa_id_.id ].tail, ch_id_ );
-            nodes[ pa_id_.id ].fan += 1;
-            return ch_id_;
+            cnode_.up   = pid_;
+            cnode_.prev = std::exchange ( nodes[ pid_.id ].tail, cid_ );
+            nodes[ pid_.id ].fan += 1;
+            return cid_;
         }
     }
 
