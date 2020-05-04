@@ -225,6 +225,7 @@ struct rooted_tree_base {
             nodes.grow_by ( 1 );
         else
             nodes.emplace_back ( );
+        size ( ) = 1;
     }
 
     template<typename... Args>
@@ -243,9 +244,15 @@ struct rooted_tree_base {
     [[nodiscard]] value_type & operator[] ( size_type node_ ) noexcept { return nodes[ node_ ]; }
     [[nodiscard]] value_type const & operator[] ( size_type node_ ) const noexcept { return nodes[ node_ ]; }
 
+    // Not safe/concurrent.
     void reserve ( size_type c_ ) { nodes.reserve ( c_ ); }
+    // Not safe/concurrent.
     void clear ( ) { nodes.clear ( ); }
+    // Not safe/concurrent.
     void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
+
+    // Not safe/concurrent.
+    [[nodiscard]] size_type size ( ) const noexcept { return nodes[ invalid.id ].up.id; }
 
     template<typename This = is_concurrent>
     std::enable_if_t<This::value> lock ( ) noexcept {
@@ -265,15 +272,12 @@ struct rooted_tree_base {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( std::move ( node_ ) );
-            nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
+            nid id        = nid{ size ( )++ };
             unlock ( );
-            insert_impl ( source_, id, back );
-            return id;
+            return insert_impl ( source_, id, back );
         }
         else {
-            nid id = nid{ static_cast<size_type> ( nodes.size ( ) ) };
-            insert_impl ( source_, id, nodes.push_back ( std::move ( node_ ) ) );
-            return id;
+            return insert_impl ( source_, nid{ size ( )++ }, nodes.push_back ( std::move ( node_ ) ) );
         }
     }
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
@@ -281,15 +285,12 @@ struct rooted_tree_base {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( node_ );
-            nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
+            nid id        = nid{ size ( )++ };
             unlock ( );
-            insert_impl ( source_, id, back );
-            return id;
+            return insert_impl ( source_, id, back );
         }
         else {
-            nid id = nid{ static_cast<size_type> ( nodes.size ( ) ) };
-            insert_impl ( source_, id, nodes.push_back ( node_ ) );
-            return id;
+            return insert_impl ( source_, nid{ size ( )++ }, nodes.push_back ( node_ ) );
         }
     }
 
@@ -299,15 +300,12 @@ struct rooted_tree_base {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            nid id        = nid{ static_cast<size_type> ( std::distance ( begin ( ), back ) ) };
+            nid id        = nid{ size ( )++ };
             unlock ( );
-            insert_impl ( source_, id, back );
-            return id;
+            return insert_impl ( source_, id, back );
         }
         else {
-            nid id = nid{ static_cast<size_type> ( nodes.size ( ) ) };
-            insert_impl ( source_, id, nodes.emplace_back ( std::forward<Args> ( args_ )... ) );
-            return id;
+            return insert_impl ( source_, nid{ size ( )++ }, nodes.emplace_back ( std::forward<Args> ( args_ )... ) );
         }
     }
 
@@ -496,8 +494,11 @@ struct rooted_tree_base {
 
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
+    private:
+    [[nodiscard]] size_type & size ( ) noexcept { return nodes[ invalid.id ].up.id; }
+
     template<typename ReturnType>
-    void insert_impl ( nid source_, nid id_, ReturnType & target_ ) {
+    [[nodiscard]] nid insert_impl ( nid source_, nid id_, ReturnType & target_ ) {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
         if constexpr ( is_concurrent::value ) {
             while ( id_.id >= nodes.size ( ) ) // await allocation.
@@ -510,11 +511,13 @@ struct rooted_tree_base {
                 target_->prev = std::exchange ( nodes[ source_.id ].tail, id_ );
                 nodes[ source_.id ].fan += 1;
             }
+            return id_;
         }
         else {
             target_.up   = source_;
             target_.prev = std::exchange ( nodes[ source_.id ].tail, id_ );
             nodes[ source_.id ].fan += 1;
+            return id_;
         }
     }
 

@@ -103,7 +103,7 @@ void add_nodes_high_workload ( Tree & tree_, int n_ ) {
 }
 
 template<typename Tree>
-void add_nodes_low_work_load ( Tree & tree_, int n_ ) {
+void add_nodes_low_workload ( Tree & tree_, int n_ ) {
     for ( int i = 1; i < n_; ++i )
         tree_.emplace ( sax::nid{ sax::uniform_int_distribution<int> ( 1, static_cast<int> ( tree_.nodes.size ( ) ) - 1 ) ( rng ) },
                         i );
@@ -112,7 +112,53 @@ void add_nodes_low_work_load ( Tree & tree_, int n_ ) {
 int main ( ) {
 
     {
-        std::cout << "sequential tree" << nl;
+        std::cout << "sequential tree lw" << nl;
+        SequentailTree tree;
+        tree.emplace ( tree.invalid, 1 );
+        plf::nanotimer timer;
+        timer.start ( );
+        add_nodes_low_workload ( tree, 400'001 );
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
+        timer.start ( );
+        int sum = 1;
+        for ( SequentailTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum += 1;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum << nl;
+        timer.start ( );
+        int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << hei << sp << wid << nl;
+    }
+
+    {
+        std::cout << "concurrent tree lw" << nl;
+        ConcurrentTree tree ( 1 );
+        std::vector<std::thread> threads;
+        threads.reserve ( 4 );
+        plf::nanotimer timer;
+        timer.start ( );
+        for ( int n = 0; n < 4; ++n )
+            threads.emplace_back ( add_nodes_low_workload<ConcurrentTree>, std::ref ( tree ), 100'001 );
+        for ( std::thread & t : threads )
+            t.join ( );
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
+        timer.start ( );
+        int sum = 1;
+        for ( ConcurrentTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum += 1;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum << nl;
+        timer.start ( );
+        int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << hei << sp << wid << nl;
+    }
+
+    {
+        std::cout << "sequential tree hw" << nl;
         SequentailTree tree;
         tree.emplace ( tree.invalid, 1 );
         plf::nanotimer timer;
@@ -133,7 +179,7 @@ int main ( ) {
     }
 
     {
-        std::cout << "concurrent tree" << nl;
+        std::cout << "concurrent tree hw" << nl;
         ConcurrentTree tree ( 1 );
         std::vector<std::thread> threads;
         threads.reserve ( 4 );
