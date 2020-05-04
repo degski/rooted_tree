@@ -58,7 +58,6 @@
 
 namespace sax {
 
-// Node-Id.
 struct nid {
 
     int id;
@@ -225,7 +224,6 @@ struct rooted_tree_base {
             nodes.grow_by ( 1 );
         else
             nodes.emplace_back ( );
-        size ( ) = 1;
     }
 
     template<typename... Args>
@@ -251,9 +249,6 @@ struct rooted_tree_base {
     // Not safe/concurrent.
     void swap ( rooted_tree_base & rhs_ ) noexcept { nodes.swap ( rhs_.nodes ); }
 
-    // Not safe/concurrent.
-    [[nodiscard]] size_type size ( ) const noexcept { return nodes[ invalid.id ].up.id; }
-
     template<typename This = is_concurrent>
     std::enable_if_t<This::value> lock ( ) noexcept {
         nodes[ invalid.id ].lock.lock ( );
@@ -270,33 +265,33 @@ struct rooted_tree_base {
     // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
     [[maybe_unused]] nid insert ( nid pid_, value_type && node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
-            iterator ch_node;
+            iterator cnode;
             nid cid;
             {
                 scoped_lock lock ( nodes[ invalid.id ].lock );
-                ch_node = nodes.push_back ( std::move ( node_ ) );
-                cid     = nid{ size ( )++ };
+                cnode = nodes.push_back ( std::move ( node_ ) );
+                cid   = nid{ static_cast<size_type> ( std::distance ( begin ( ), cnode ) ) };
             }
-            return insert_impl ( pid_, ch_node, cid );
+            return insert_impl ( pid_, cnode, cid );
         }
         else {
-            return insert_impl ( pid_, nodes.push_back ( std::move ( node_ ) ), nid{ size ( )++ } );
+            return insert_impl ( pid_, nodes.push_back ( std::move ( node_ ) ), nid{ static_cast<size_type> ( nodes.size ( ) ) } );
         }
     }
     // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
     [[maybe_unused]] nid insert ( nid pid_, value_type const & node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
-            iterator ch_node;
+            iterator cnode;
             nid cid;
             {
                 scoped_lock lock ( nodes[ invalid.id ].lock );
-                ch_node = nodes.push_back ( node_ );
-                cid     = nid{ size ( )++ };
+                cnode = nodes.push_back ( node_ );
+                cid   = nid{ static_cast<size_type> ( std::distance ( begin ( ), cnode ) ) };
             }
-            return insert_impl ( pid_, ch_node, cid );
+            return insert_impl ( pid_, cnode, cid );
         }
         else {
-            return insert_impl ( pid_, nodes.push_back ( node_ ), nid{ size ( )++ } );
+            return insert_impl ( pid_, nodes.push_back ( node_ ), nid{ static_cast<size_type> ( nodes.size ( ) ) } );
         }
     }
 
@@ -304,17 +299,18 @@ struct rooted_tree_base {
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid pid_, Args &&... args_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
-            iterator ch_node;
+            iterator cnode;
             nid cid;
             {
                 scoped_lock lock ( nodes[ invalid.id ].lock );
-                ch_node = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-                cid     = nid{ size ( )++ };
+                cnode = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+                cid   = nid{ static_cast<size_type> ( std::distance ( begin ( ), cnode ) ) };
             }
-            return insert_impl ( pid_, ch_node, cid );
+            return insert_impl ( pid_, cnode, cid );
         }
         else {
-            return insert_impl ( pid_, nodes.emplace_back ( std::forward<Args> ( args_ )... ), nid{ size ( )++ } );
+            return insert_impl ( pid_, nodes.emplace_back ( std::forward<Args> ( args_ )... ),
+                                 nid{ static_cast<size_type> ( nodes.size ( ) ) } );
         }
     }
 
@@ -504,8 +500,6 @@ struct rooted_tree_base {
     static constexpr nid invalid = nid{ 0 }, root = nid{ 1 };
 
     private:
-    [[nodiscard]] size_type & size ( ) noexcept { return nodes[ invalid.id ].up.id; }
-
     template<typename AccessType>
     [[nodiscard]] nid insert_impl ( nid pid_, AccessType & cnode_, nid cid_ ) {
         assert ( invalid != pid_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
