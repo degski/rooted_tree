@@ -358,7 +358,7 @@ struct rooted_tree_base {
             }
         }
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
         [[nodiscard]] size_type height ( ) const noexcept { return depth; }
@@ -393,7 +393,7 @@ struct rooted_tree_base {
                 return *this;
             }
         }
-        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
@@ -440,7 +440,7 @@ struct rooted_tree_base {
             }
         }
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ parent.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ parent.id ] ); }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ parent.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return parent.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return parent; }
         [[nodiscard]] size_type height ( ) const noexcept { return depth; }
@@ -504,7 +504,7 @@ struct rooted_tree_base {
             return *this;
         }
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
@@ -538,7 +538,7 @@ struct rooted_tree_base {
             return *this;
         }
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
     };
