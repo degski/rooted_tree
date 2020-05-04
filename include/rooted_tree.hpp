@@ -267,45 +267,45 @@ struct rooted_tree_base {
         nodes[ invalid.id ].lock.unlock ( );
     };
 
-    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
-    [[maybe_unused]] nid insert ( nid source_, value_type && node_ ) noexcept {
+    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to parent_id_.
+    [[maybe_unused]] nid insert ( nid parent_id_, value_type && node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( std::move ( node_ ) );
             nid id        = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( source_, back, id );
+            return insert_impl ( parent_id_, back, id );
         }
         else {
-            return insert_impl ( source_, nodes.push_back ( std::move ( node_ ) ), nid{ size ( )++ } );
+            return insert_impl ( parent_id_, nodes.push_back ( std::move ( node_ ) ), nid{ size ( )++ } );
         }
     }
-    // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
-    [[maybe_unused]] nid insert ( nid source_, value_type const & node_ ) noexcept {
+    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to parent_id_.
+    [[maybe_unused]] nid insert ( nid parent_id_, value_type const & node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.push_back ( node_ );
             nid id        = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( source_, back, id );
+            return insert_impl ( parent_id_, back, id );
         }
         else {
-            return insert_impl ( source_, nodes.push_back ( node_ ), nid{ size ( )++ } );
+            return insert_impl ( parent_id_, nodes.push_back ( node_ ), nid{ size ( )++ } );
         }
     }
 
-    // Emplace a node (add a child to a parent). Emplace the root-node by passing 'invalid' as parameter to source_ (once).
+    // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to parent_id_.
     template<typename... Args>
-    [[maybe_unused]] nid emplace ( nid source_, Args &&... args_ ) noexcept {
+    [[maybe_unused]] nid emplace ( nid parent_id_, Args &&... args_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
             lock ( );
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id        = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( source_, back, id );
+            return insert_impl ( parent_id_, back, id );
         }
         else {
-            return insert_impl ( source_, nodes.emplace_back ( std::forward<Args> ( args_ )... ), nid{ size ( )++ } );
+            return insert_impl ( parent_id_, nodes.emplace_back ( std::forward<Args> ( args_ )... ), nid{ size ( )++ } );
         }
     }
 
@@ -497,27 +497,25 @@ struct rooted_tree_base {
     private:
     [[nodiscard]] size_type & size ( ) noexcept { return nodes[ invalid.id ].up.id; }
 
-    template<typename ReturnType>
-    [[nodiscard]] nid insert_impl ( nid source_, ReturnType & target_, nid id_ ) {
-        assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
+    template<typename AccessType>
+    [[nodiscard]] nid insert_impl ( nid parent_id_, AccessType & child_node_, nid child_id_ ) {
+        assert ( invalid != parent_id_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
         if constexpr ( is_concurrent::value ) {
-            while ( id_.id >= nodes.size ( ) ) // await allocation.
+            while ( child_id_.id >= nodes.size ( ) ) // await allocation.
                 std::this_thread::yield ( );
-            while ( not nodes[ id_.id ].done ) // await construction.
+            while ( not nodes[ child_id_.id ].done ) // await construction.
                 std::this_thread::yield ( );
-            target_->up = source_;
-            {
-                scoped_lock lock ( nodes[ source_.id ].lock );
-                target_->prev = std::exchange ( nodes[ source_.id ].tail, id_ );
-                nodes[ source_.id ].fan += 1;
-            }
-            return id_;
+            child_node_->up = parent_id_;
+            scoped_lock lock ( nodes[ parent_id_.id ].lock );
+            child_node_->prev = std::exchange ( nodes[ parent_id_.id ].tail, child_id_ );
+            nodes[ parent_id_.id ].fan += 1;
+            return child_id_;
         }
         else {
-            target_.up   = source_;
-            target_.prev = std::exchange ( nodes[ source_.id ].tail, id_ );
-            nodes[ source_.id ].fan += 1;
-            return id_;
+            child_node_.up   = parent_id_;
+            child_node_.prev = std::exchange ( nodes[ parent_id_.id ].tail, child_id_ );
+            nodes[ parent_id_.id ].fan += 1;
+            return child_id_;
         }
     }
 

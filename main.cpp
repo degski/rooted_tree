@@ -117,7 +117,7 @@ int main ( ) {
         tree.emplace ( tree.invalid, 1 );
         plf::nanotimer timer;
         timer.start ( );
-        add_nodes_low_workload ( tree, 400'001 );
+        add_nodes_low_workload ( tree, 4'000'001 );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
@@ -140,7 +140,7 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
         for ( int n = 0; n < 4; ++n )
-            threads.emplace_back ( add_nodes_low_workload<ConcurrentTree>, std::ref ( tree ), 100'001 );
+            threads.emplace_back ( add_nodes_low_workload<ConcurrentTree>, std::ref ( tree ), 1'000'001 );
         for ( std::thread & t : threads )
             t.join ( );
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
