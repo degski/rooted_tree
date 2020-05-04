@@ -121,11 +121,17 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
-        int sum = 1;
-        for ( SequentailTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
-            sum += 1;
+        int sum1 = 1;
+        for ( SequentailTree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum1 += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << sum << nl;
+        std::cout << duration << "ms" << sp << sum1 << nl;
+        timer.start ( );
+        int sum2 = 1;
+        for ( SequentailTree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum2 += 1;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum2 << nl;
         timer.start ( );
         int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
@@ -146,11 +152,17 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
-        int sum = 1;
-        for ( ConcurrentTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
-            sum += 1;
+        int sum1 = 1;
+        for ( ConcurrentTree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum1 += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << sum << nl;
+        std::cout << duration << "ms" << sp << sum1 << nl;
+        timer.start ( );
+        int sum2 = 1;
+        for ( ConcurrentTree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum2 += 1;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum2 << nl;
         timer.start ( );
         int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
@@ -167,11 +179,17 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
-        int sum = 1;
-        for ( SequentailTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
-            sum += 1;
+        int sum1 = 1;
+        for ( SequentailTree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum1 += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << sum << nl;
+        std::cout << duration << "ms" << sp << sum1 << nl;
+        timer.start ( );
+        int sum2 = 1;
+        for ( SequentailTree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum2 += 1;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum2 << nl;
         timer.start ( );
         int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
@@ -192,11 +210,17 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << tree.nodes.size ( ) << nl;
         timer.start ( );
-        int sum = 1;
-        for ( ConcurrentTree::const_level_iterator it{ tree }; it.is_valid ( ); ++it )
-            sum += 1;
+        int sum1 = 1;
+        for ( ConcurrentTree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum1 += 1;
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
-        std::cout << duration << "ms" << sp << sum << nl;
+        std::cout << duration << "ms" << sp << sum1 << nl;
+        timer.start ( );
+        int sum2 = 1;
+        for ( ConcurrentTree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+            sum2 += 1;
+        duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << sum2 << nl;
         timer.start ( );
         int wid, hei = tree.height ( tree.root, std::addressof ( wid ) );
         duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
@@ -206,7 +230,7 @@ int main ( ) {
     return EXIT_SUCCESS;
 }
 
-int main6576765 ( ) {
+int main76868678 ( ) {
 
     using Tree = SequentailTree;
 
@@ -226,7 +250,7 @@ int main6576765 ( ) {
     sax::nid n12 = tree.emplace ( n2, 12 );
     sax::nid n13 = tree.emplace ( n12, 13 );
 
-    exit ( 0 );
+    /*
 
     for ( Tree::const_out_iterator it{ tree, Tree::root }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
@@ -236,9 +260,17 @@ int main6576765 ( ) {
         std::cout << it->value << sp;
     std::cout << nl;
 
-    std::cout << tree.height ( ) << nl;
+    */
 
-    for ( Tree::const_level_iterator it{ tree, 4 }; it.is_valid ( ); ++it )
+    int w;
+
+    std::cout << tree.height ( tree.root, &w ) << sp << w << nl;
+
+    for ( Tree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
+        std::cout << it.id ( ) << sp;
+    std::cout << nl;
+
+    for ( Tree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 

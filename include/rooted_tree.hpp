@@ -328,8 +328,80 @@ struct rooted_tree_base {
         }
     }
 
-    // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
-    class level_iterator {
+    class depth_iterator {
+        friend struct rooted_tree_base;
+        rooted_tree_base & tree;
+        id_vector stack;
+        size_type depth, count;
+        nid node;
+
+        public:
+        depth_iterator ( rooted_tree_base & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ }, node{ nid_ } {
+            for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                push ( stack, child );
+            count = static_cast<size_type> ( stack.size ( ) );
+            depth = 1 + static_cast<size_type> ( 0 != count );
+        }
+        [[maybe_unused]] depth_iterator & operator++ ( ) {
+            if ( size_type stack_size = static_cast<size_type> ( stack.size ( ) ); static_cast<bool> ( stack_size ) ) {
+                if ( not count )
+                    count = stack_size;
+                node = pop ( stack );
+                count -= 1;
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    push ( stack, child );
+                return *this;
+            }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
+            }
+        }
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+        [[nodiscard]] size_type height ( ) const noexcept { return depth; }
+    };
+
+    class const_depth_iterator {
+        friend struct rooted_tree_base;
+        rooted_tree_base const & tree;
+        id_vector stack;
+        size_type depth, count;
+        nid node;
+
+        public:
+        const_depth_iterator ( rooted_tree_base const & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ }, node{ nid_ } {
+            for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                push ( stack, child );
+            count = static_cast<size_type> ( stack.size ( ) );
+            depth = 1 + static_cast<size_type> ( 0 != count );
+        }
+        [[maybe_unused]] const_depth_iterator & operator++ ( ) {
+            if ( size_type stack_size = static_cast<size_type> ( stack.size ( ) ); static_cast<bool> ( stack_size ) ) {
+                if ( not count )
+                    count = stack_size;
+                node = pop ( stack );
+                count -= 1;
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    push ( stack, child );
+                return *this;
+            }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
+            }
+        }
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+        [[nodiscard]] size_type height ( ) const noexcept { return depth; }
+    };
+
+    // It is safe to destroy the node the interator is pointing at. Note: breadth_iterator is a (rather) heavy object.
+    class breadth_iterator {
         friend struct rooted_tree_base;
         rooted_tree_base & tree;
         id_deque queue;
@@ -337,7 +409,7 @@ struct rooted_tree_base {
         nid parent;
 
         public:
-        level_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid nid_ = rooted_tree_base::root ) :
+        breadth_iterator ( rooted_tree_base & tree_, size_type max_depth_ = 0, nid nid_ = rooted_tree_base::root ) :
             tree{ tree_ }, max_depth{ max_depth_ }, parent{ nid_ } {
             if ( ( not max_depth ) or ( max_depth > 1 ) )
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
@@ -345,7 +417,7 @@ struct rooted_tree_base {
             count = static_cast<size_type> ( queue.size ( ) );
             depth = 1 + static_cast<size_type> ( 0 != count );
         }
-        [[maybe_unused]] level_iterator & operator++ ( ) {
+        [[maybe_unused]] breadth_iterator & operator++ ( ) {
             if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
                     count = queue_size;
@@ -374,8 +446,8 @@ struct rooted_tree_base {
         [[nodiscard]] size_type height ( ) const noexcept { return depth; }
     };
 
-    // It is safe to destroy the node the interator is pointing at. Note: level_iterator is a (rather) heavy object.
-    class const_level_iterator {
+    // It is safe to destroy the node the interator is pointing at. Note: breadth_iterator is a (rather) heavy object.
+    class const_breadth_iterator {
         friend struct rooted_tree_base;
         rooted_tree_base const & tree;
         id_deque queue;
@@ -383,7 +455,7 @@ struct rooted_tree_base {
         nid parent;
 
         public:
-        const_level_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0, nid nid_ = rooted_tree_base::root ) :
+        const_breadth_iterator ( rooted_tree_base const & tree_, size_type max_depth_ = 0, nid nid_ = rooted_tree_base::root ) :
             tree{ tree_ }, max_depth{ max_depth_ }, parent{ nid_ } {
             if ( ( not max_depth ) or ( max_depth > 1 ) )
                 for ( nid child = tree[ parent.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
@@ -391,7 +463,7 @@ struct rooted_tree_base {
             count = static_cast<size_type> ( queue.size ( ) );
             depth = 1 + static_cast<size_type> ( 0 != count );
         }
-        [[maybe_unused]] const_level_iterator & operator++ ( ) {
+        [[maybe_unused]] const_breadth_iterator & operator++ ( ) {
             if ( size_type queue_size = static_cast<size_type> ( queue.size ( ) ); static_cast<bool> ( queue_size ) ) {
                 if ( not count ) {
                     count = queue_size;
