@@ -332,22 +332,16 @@ struct rooted_tree_base {
         friend struct rooted_tree_base;
         rooted_tree_base & tree;
         id_vector stack;
-        size_type depth, count;
         nid node;
 
         public:
         depth_iterator ( rooted_tree_base & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ }, node{ nid_ } {
             for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                 push ( stack, child );
-            count = static_cast<size_type> ( stack.size ( ) );
-            depth = 1 + static_cast<size_type> ( 0 != count );
         }
         [[maybe_unused]] depth_iterator & operator++ ( ) {
             if ( size_type stack_size = static_cast<size_type> ( stack.size ( ) ); static_cast<bool> ( stack_size ) ) {
-                if ( not count )
-                    count = stack_size;
                 node = pop ( stack );
-                count -= 1;
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
                 return *this;
@@ -361,29 +355,22 @@ struct rooted_tree_base {
         [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
-        [[nodiscard]] size_type height ( ) const noexcept { return depth; }
     };
 
     class const_depth_iterator {
         friend struct rooted_tree_base;
         rooted_tree_base const & tree;
         id_vector stack;
-        size_type depth, count;
         nid node;
 
         public:
         const_depth_iterator ( rooted_tree_base const & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ }, node{ nid_ } {
             for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                 push ( stack, child );
-            count = static_cast<size_type> ( stack.size ( ) );
-            depth = 1 + static_cast<size_type> ( 0 != count );
         }
         [[maybe_unused]] const_depth_iterator & operator++ ( ) {
             if ( size_type stack_size = static_cast<size_type> ( stack.size ( ) ); static_cast<bool> ( stack_size ) ) {
-                if ( not count )
-                    count = stack_size;
                 node = pop ( stack );
-                count -= 1;
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
                 return *this;
@@ -397,7 +384,6 @@ struct rooted_tree_base {
         [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
         [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
         [[nodiscard]] nid id ( ) const noexcept { return node; }
-        [[nodiscard]] size_type height ( ) const noexcept { return depth; }
     };
 
     // It is safe to destroy the node the interator is pointing at. Note: breadth_iterator is a (rather) heavy object.
