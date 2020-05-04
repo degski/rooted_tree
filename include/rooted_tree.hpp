@@ -274,10 +274,10 @@ struct rooted_tree_base {
             iterator back = nodes.push_back ( std::move ( node_ ) );
             nid id        = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( source_, id, back );
+            return insert_impl ( source_, back, id );
         }
         else {
-            return insert_impl ( source_, nid{ size ( )++ }, nodes.push_back ( std::move ( node_ ) ) );
+            return insert_impl ( source_, nodes.push_back ( std::move ( node_ ) ), nid{ size ( )++ } );
         }
     }
     // Insert a node (add a child to a parent). Insert the root-node by passing 'invalid' as parameter to source_ (once).
@@ -287,10 +287,10 @@ struct rooted_tree_base {
             iterator back = nodes.push_back ( node_ );
             nid id        = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( source_, id, back );
+            return insert_impl ( source_, back, id );
         }
         else {
-            return insert_impl ( source_, nid{ size ( )++ }, nodes.push_back ( node_ ) );
+            return insert_impl ( source_, nodes.push_back ( node_ ), nid{ size ( )++ } );
         }
     }
 
@@ -302,10 +302,10 @@ struct rooted_tree_base {
             iterator back = nodes.emplace_back ( std::forward<Args> ( args_ )... );
             nid id        = nid{ size ( )++ };
             unlock ( );
-            return insert_impl ( source_, id, back );
+            return insert_impl ( source_, back, id );
         }
         else {
-            return insert_impl ( source_, nid{ size ( )++ }, nodes.emplace_back ( std::forward<Args> ( args_ )... ) );
+            return insert_impl ( source_, nodes.emplace_back ( std::forward<Args> ( args_ )... ), nid{ size ( )++ } );
         }
     }
 
@@ -498,7 +498,7 @@ struct rooted_tree_base {
     [[nodiscard]] size_type & size ( ) noexcept { return nodes[ invalid.id ].up.id; }
 
     template<typename ReturnType>
-    [[nodiscard]] nid insert_impl ( nid source_, nid id_, ReturnType & target_ ) {
+    [[nodiscard]] nid insert_impl ( nid source_, ReturnType & target_, nid id_ ) {
         assert ( invalid != source_ or nodes[ invalid.id ].tail.is_invalid ( ) ); // no 2+ roots.
         if constexpr ( is_concurrent::value ) {
             while ( id_.id >= nodes.size ( ) ) // await allocation.
