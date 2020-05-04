@@ -118,17 +118,31 @@ using id_deque = boost::container::deque<nid, tbb::tbb_allocator<nid>>;
 #endif
 
 // De-queue.
-[[nodiscard]] nid de ( id_deque & d_ ) noexcept {
-    assert ( d_.size ( ) );
-    nid v = d_.front ( );
-    d_.pop_front ( );
+[[nodiscard]] nid de ( id_deque & deq_ ) noexcept {
+    assert ( deq_.size ( ) );
+    nid v = deq_.front ( );
+    deq_.pop_front ( );
     return v;
 }
 
 // En-queue.
 template<typename T>
-[[maybe_unused]] auto en ( id_deque & d_, T const & v_ ) {
-    return d_.push_back ( v_ );
+[[maybe_unused]] auto en ( id_deque & deq_, T const & v_ ) {
+    return deq_.push_back ( v_ );
+}
+
+// Pop stack.
+[[nodiscard]] nid pop ( id_vector & vec_ ) noexcept {
+    assert ( vec_.size ( ) );
+    nid v = vec_.back ( );
+    vec_.pop_back ( );
+    return v;
+}
+
+// Push stack.
+template<typename T>
+[[maybe_unused]] auto push ( id_vector & vec_, T const & v_ ) {
+    return vec_.push_back ( v_ );
 }
 
 inline constexpr int reserve_size = 1'024;
