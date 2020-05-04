@@ -270,10 +270,13 @@ struct rooted_tree_base {
     // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
     [[maybe_unused]] nid insert ( nid pid_, value_type && node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
-            lock ( );
-            iterator ch_node = nodes.push_back ( std::move ( node_ ) );
-            nid cid          = nid{ size ( )++ };
-            unlock ( );
+            iterator ch_node;
+            nid cid;
+            {
+                scoped_lock lock ( nodes[ invalid.id ].lock );
+                ch_node = nodes.push_back ( std::move ( node_ ) );
+                cid     = nid{ size ( )++ };
+            }
             return insert_impl ( pid_, ch_node, cid );
         }
         else {
@@ -283,10 +286,13 @@ struct rooted_tree_base {
     // Add a child (-node) to a parent. Add root-node by passing 'invalid' as parameter to pid_.
     [[maybe_unused]] nid insert ( nid pid_, value_type const & node_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
-            lock ( );
-            iterator ch_node = nodes.push_back ( node_ );
-            nid cid          = nid{ size ( )++ };
-            unlock ( );
+            iterator ch_node;
+            nid cid;
+            {
+                scoped_lock lock ( nodes[ invalid.id ].lock );
+                ch_node = nodes.push_back ( node_ );
+                cid     = nid{ size ( )++ };
+            }
             return insert_impl ( pid_, ch_node, cid );
         }
         else {
@@ -298,10 +304,13 @@ struct rooted_tree_base {
     template<typename... Args>
     [[maybe_unused]] nid emplace ( nid pid_, Args &&... args_ ) noexcept {
         if constexpr ( is_concurrent::value ) {
-            lock ( );
-            iterator ch_node = nodes.emplace_back ( std::forward<Args> ( args_ )... );
-            nid cid          = nid{ size ( )++ };
-            unlock ( );
+            iterator ch_node;
+            nid cid;
+            {
+                scoped_lock lock ( nodes[ invalid.id ].lock );
+                ch_node = nodes.emplace_back ( std::forward<Args> ( args_ )... );
+                cid     = nid{ size ( )++ };
+            }
             return insert_impl ( pid_, ch_node, cid );
         }
         else {
@@ -506,9 +515,11 @@ struct rooted_tree_base {
             while ( not nodes[ cid_.id ].done ) // await construction.
                 std::this_thread::yield ( );
             cnode_->up = pid_;
-            scoped_lock lock ( nodes[ pid_.id ].lock );
-            cnode_->prev = std::exchange ( nodes[ pid_.id ].tail, cid_ );
-            nodes[ pid_.id ].fan += 1;
+            {
+                scoped_lock lock ( nodes[ pid_.id ].lock );
+                cnode_->prev = std::exchange ( nodes[ pid_.id ].tail, cid_ );
+                nodes[ pid_.id ].fan += 1;
+            }
             return cid_;
         }
         else {
