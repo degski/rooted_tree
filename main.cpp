@@ -37,6 +37,7 @@
 #include <sax/iostream.hpp>
 #include <sax/prng_sfc.hpp>
 #include <sax/uniform_int_distribution.hpp>
+#include "vm_backed.hpp"
 
 #if defined( _DEBUG )
 #    define RANDOM 0
@@ -76,12 +77,21 @@ namespace Rng {
 sax::Rng & rng = Rng::generator ( );
 
 struct Foo : public sax::rooted_tree_hook {
-    int value                         = 0;
-    Foo ( ) noexcept                  = default;
-    Foo ( Foo const & foo_ ) noexcept = default;
+    int value                    = 0;
+    Foo ( ) noexcept             = default;
+    Foo ( Foo const & ) noexcept = default;
 
     explicit Foo ( int const & i_ ) noexcept : value{ i_ } {}
     explicit Foo ( int && i_ ) noexcept : value{ std::move ( i_ ) } {}
+};
+
+struct Bar {
+    int value                    = 0;
+    Bar ( ) noexcept             = default;
+    Bar ( Bar const & ) noexcept = default;
+
+    explicit Bar ( int const & i_ ) noexcept : value{ i_ } {}
+    explicit Bar ( int && i_ ) noexcept : value{ std::move ( i_ ) } {}
 };
 
 using ConcurrentTree = sax::concurrent_rooted_tree<Foo>;
@@ -230,7 +240,7 @@ int main75675 ( ) {
     return EXIT_SUCCESS;
 }
 
-int main ( ) {
+int main7867867 ( ) {
 
     using Tree = ConcurrentTree;
 
@@ -277,6 +287,65 @@ int main ( ) {
     for ( Tree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
+
+    return EXIT_SUCCESS;
+}
+
+int main ( ) {
+
+    {
+        plf::nanotimer timer;
+        timer.start ( );
+
+        sax::vm_vector<Bar, int, 500'000'000> vec;
+
+        for ( int i = 0; i < 2'000'000; ++i )
+            vec.emplace_back ( i );
+
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
+    }
+
+    {
+        plf::nanotimer timer;
+        timer.start ( );
+
+        std::vector<Bar> vec;
+        vec.reserve ( 2'000'000 );
+
+        for ( int i = 0; i < 2'000'000; ++i )
+            vec.emplace_back ( i );
+
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
+    }
+
+    {
+        plf::nanotimer timer;
+        timer.start ( );
+
+        sax::vm_vector<Bar, int, 500'000'000> vec;
+
+        for ( int i = 0; i < 2'000'000; ++i )
+            vec.emplace_back ( i );
+
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
+    }
+
+    {
+        plf::nanotimer timer;
+        timer.start ( );
+
+        std::vector<Bar> vec;
+        vec.reserve ( 2'000'000 );
+
+        for ( int i = 0; i < 2'000'000; ++i )
+            vec.emplace_back ( i );
+
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
+    }
 
     return EXIT_SUCCESS;
 }

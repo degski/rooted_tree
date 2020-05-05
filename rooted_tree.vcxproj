@@ -226,6 +226,7 @@ C:\Program Files\LLVM\lib\clang\10.0.0\lib\windows\clang_rt.asan-preinit-x86_64.
   <ItemGroup>
     <ClInclude Include="include\rooted_tree.hpp" />
     <ClInclude Include="include\veque.hpp" />
+    <ClInclude Include="include\vm_backed.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
