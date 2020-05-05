@@ -23,16 +23,23 @@
 
 #pragma once
 
-#ifndef NOMINMAX
-#    define NOMINMAX
-#endif
+#if defined( _MSC_VER )
 
-#ifndef _AMD64_
-#    define _AMD64_ // srw_lock
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
+#    ifndef _AMD64_
+#        define _AMD64_ // srw_lock
+#    endif
+#    include <windef.h>
+#    include <WinBase.h>
+#    include <Memoryapi.h>
+
+#else
+
+#    include <>
+
 #endif
-#include <windef.h>
-#include <WinBase.h>
-#include <Memoryapi.h>
 
 #include <cassert>
 #include <cstddef>
@@ -48,53 +55,11 @@
 #include <type_traits>
 #include <utility>
 
-#include <tbb/concurrent_vector.h>
 #include <tbb/spin_mutex.h>
 
 #include <hedley.hpp>
 
-#include <atomic>
-
 namespace sax {
-
-struct spin_lock final {
-
-    spin_lock ( ) noexcept {}
-    spin_lock ( const spin_lock & ) = delete;
-    spin_lock & operator= ( const spin_lock & ) = delete;
-
-    void lock ( ) noexcept {
-        while ( flag.test_and_set ( std::memory_order_acquire ) )
-            ;
-    }
-    [[nodiscard]] bool try_lock ( ) noexcept { return not( flag.test_and_set ( std::memory_order_acquire ) ); }
-    void unlock ( ) noexcept { flag.clear ( std::memory_order_release ); }
-
-    private:
-    std::atomic_flag flag = ATOMIC_FLAG_INIT;
-};
-
-struct srw_lock final {
-
-    srw_lock ( ) noexcept             = default;
-    srw_lock ( srw_lock && ) noexcept = default;
-    ~srw_lock ( )                     = default;
-    srw_lock & operator= ( srw_lock && ) noexcept = default;
-
-    srw_lock ( srw_lock const & ) = delete;
-    srw_lock & operator= ( srw_lock const & ) = delete;
-
-    void lock ( ) noexcept { AcquireSRWLockExclusive ( &m_handle ); }
-    [[nodiscard]] bool try_lock ( ) noexcept { return 0 != TryAcquireSRWLockExclusive ( &m_handle ); }
-    void unlock ( ) noexcept { ReleaseSRWLockExclusive ( &m_handle ); } // Look at this...
-
-    void lock ( ) const noexcept { AcquireSRWLockShared ( &m_handle ); }
-    [[nodiscard]] bool try_lock ( ) const noexcept { return 0 != TryAcquireSRWLockShared ( &m_handle ); }
-    void unlock ( ) const noexcept { ReleaseSRWLockShared ( &m_handle ); }
-
-    private:
-    mutable SRWLOCK m_handle = SRWLOCK_INIT;
-};
 
 template<typename ValueType, typename SizeType, SizeType Capacity>
 struct vm_vector {
@@ -231,13 +196,12 @@ struct vm_vector {
     static constexpr size_type allocation_page_size_b = static_cast<size_type> ( 1'600 * 65'536 ); // 100MB
 
     [[nodiscard]] size_type required_b ( size_type const & r_ ) const noexcept {
-        std::size_t req = r_ * sizeof ( value_type );
+        std::size_t req = static_cast<std::size_t> ( r_ ) * sizeof ( value_type );
         return req % page_size_b ? ( ( req + page_size_b ) / page_size_b ) * page_size_b : req;
     }
     [[nodiscard]] constexpr size_type capacity_b ( ) const noexcept {
-        constexpr std::size_t cap = Capacity * sizeof ( value_type );
-        return cap % page_size_b ? ( ( static_cast<size_type> ( cap ) + page_size_b ) / page_size_b ) * page_size_b
-                                 : static_cast<size_type> ( cap );
+        constexpr std::size_t cap = static_cast<std::size_t> ( Capacity ) * sizeof ( value_type );
+        return cap % page_size_b ? ( ( cap + page_size_b ) / page_size_b ) * page_size_b : cap;
     }
     [[nodiscard]] size_type size_b ( ) const noexcept {
         return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
@@ -250,18 +214,44 @@ struct vm_vector {
     size_type m_committed_b;
 };
 
+namespace detail {
+
 template<typename Data>
 struct vm_epilog : public Data {
     tbb::spin_mutex lock;
-    tbb::atomic<char> atom;
+    tbb::atomic<char const> atom;
     template<typename... Args>
     vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
 };
 
+struct srw_lock final {
+
+    srw_lock ( ) noexcept             = default;
+    srw_lock ( srw_lock && ) noexcept = default;
+    ~srw_lock ( )                     = default;
+    srw_lock & operator= ( srw_lock && ) noexcept = default;
+
+    srw_lock ( srw_lock const & ) = delete;
+    srw_lock & operator= ( srw_lock const & ) = delete;
+
+    void lock ( ) noexcept { AcquireSRWLockExclusive ( &m_handle ); }
+    [[nodiscard]] bool try_lock ( ) noexcept { return 0 != TryAcquireSRWLockExclusive ( &m_handle ); }
+    void unlock ( ) noexcept { ReleaseSRWLockExclusive ( &m_handle ); } // Look at this...
+
+    void lock ( ) const noexcept { AcquireSRWLockShared ( &m_handle ); }
+    [[nodiscard]] bool try_lock ( ) const noexcept { return 0 != TryAcquireSRWLockShared ( &m_handle ); }
+    void unlock ( ) const noexcept { ReleaseSRWLockShared ( &m_handle ); }
+
+    private:
+    mutable SRWLOCK m_handle = SRWLOCK_INIT;
+};
+
+} // namespace detail
+
 template<typename ValueType, typename SizeType, SizeType Capacity>
 struct vm_concurrent_vector {
 
-    using value_type = vm_epilog<ValueType>;
+    using value_type = detail::vm_epilog<ValueType>;
 
     using pointer       = value_type *;
     using const_pointer = value_type const *;
@@ -278,7 +268,7 @@ struct vm_concurrent_vector {
     using reverse_iterator       = pointer;
     using const_reverse_iterator = const_pointer;
 
-    using mutex       = sax::srw_lock;
+    using mutex       = detail::srw_lock;
     using scoped_lock = std::scoped_lock;
 
     vm_concurrent_vector ( ) :
@@ -408,13 +398,12 @@ struct vm_concurrent_vector {
     static constexpr size_type allocation_page_size_b = static_cast<size_type> ( 1'600 * 65'536 ); // 100MB
 
     [[nodiscard]] size_type required_b ( size_type const & r_ ) const noexcept {
-        std::size_t req = r_ * sizeof ( value_type );
+        std::size_t req = static_cast<std::size_t> ( r_ ) * sizeof ( value_type );
         return req % page_size_b ? ( ( req + page_size_b ) / page_size_b ) * page_size_b : req;
     }
     [[nodiscard]] constexpr size_type capacity_b ( ) const noexcept {
-        constexpr std::size_t cap = Capacity * sizeof ( value_type );
-        return cap % page_size_b ? ( ( static_cast<size_type> ( cap ) + page_size_b ) / page_size_b ) * page_size_b
-                                 : static_cast<size_type> ( cap );
+        constexpr std::size_t cap = static_cast<std::size_t> ( Capacity ) * sizeof ( value_type );
+        return cap % page_size_b ? ( ( cap + page_size_b ) / page_size_b ) * page_size_b : cap;
     }
     [[nodiscard]] size_type size_b ( ) const noexcept {
         return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );

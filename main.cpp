@@ -291,10 +291,10 @@ int main7867867 ( ) {
     return EXIT_SUCCESS;
 }
 
-using Vec  = sax::vm_vector<sax::vm_epilog<Bar>, int, 100'000'000>;
+using Vec  = sax::vm_vector<sax::detail::vm_epilog<Bar>, int, 100'000'000>;
 using CVec = sax::vm_concurrent_vector<Bar, int, 100'000'000>;
 
-using TbbVec = tbb::concurrent_vector<sax::vm_epilog<Bar>, tbb::zero_allocator<Bar>>;
+using TbbVec = tbb::concurrent_vector<sax::detail::vm_epilog<Bar>, tbb::zero_allocator<Bar>>;
 
 template<typename Type>
 void emplace_back_low_workload ( Type & vec_, int n_ ) {
