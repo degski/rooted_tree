@@ -193,7 +193,7 @@ struct vm_vector {
                                  : static_cast<size_type> ( cap );
     }
     [[nodiscard]] size_type size_b ( ) const noexcept {
-        return reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin );
+        return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
     [[nodiscard]] static size_type grow ( size_type const & cap_b_ ) noexcept { return cap_b_ + allocation_page_size_b; }
@@ -206,9 +206,9 @@ struct vm_vector {
 template<typename Data>
 struct vm_epilog : public Data {
     tbb::spin_mutex lock;
-    tbb::atomic<char> done;
+    tbb::atomic<char> atom;
     template<typename... Args>
-    vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, done{ 1 } { };
+    vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
 };
 
 template<typename ValueType, typename SizeType, SizeType Capacity>
@@ -230,6 +230,9 @@ struct vm_concurrent_vector {
     using const_iterator         = const_pointer;
     using reverse_iterator       = pointer;
     using const_reverse_iterator = const_pointer;
+
+    using mutex       = tbb::spin_mutex;
+    using scoped_lock = tbb::spin_mutex::scoped_lock;
 
     vm_concurrent_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
@@ -272,13 +275,18 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) ) {
-            size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : allocation_page_size_b, capacity_b ( ) );
-            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - m_committed_b, MEM_COMMIT, PAGE_READWRITE ) ) )
-                throw std::bad_alloc ( );
-            m_committed_b = cib;
+        pointer p;
+        {
+            scoped_lock lock ( m_mutex );
+            if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) ) {
+                size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : allocation_page_size_b, capacity_b ( ) );
+                if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - m_committed_b, MEM_COMMIT, PAGE_READWRITE ) ) )
+                    throw std::bad_alloc ( );
+                m_committed_b = cib;
+            }
+            p = m_end++;
         }
-        return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
+        return *new ( p ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
 
@@ -342,7 +350,7 @@ struct vm_concurrent_vector {
     }
 
     void await_construction ( const_iterator element_ ) const noexcept {
-        while ( not element_->done ) // await construction.
+        while ( not element_->atom ) // await construction.
             std::this_thread::yield ( );
     }
     void await_construction ( const_reference element_ ) const noexcept { await_construction ( std::addressof ( element_ ) ); }
@@ -362,13 +370,14 @@ struct vm_concurrent_vector {
                                  : static_cast<size_type> ( cap );
     }
     [[nodiscard]] size_type size_b ( ) const noexcept {
-        return reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin );
+        return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
     [[nodiscard]] static size_type grow ( size_type const & cap_b_ ) noexcept { return cap_b_ + allocation_page_size_b; }
     [[nodiscard]] static size_type shrink ( size_type const & cap_b_ ) noexcept { return cap_b_ - allocation_page_size_b; }
 
     pointer m_begin, m_end;
+    mutex m_mutex;
     size_type m_committed_b;
 };
 
