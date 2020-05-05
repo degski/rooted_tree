@@ -134,9 +134,9 @@ struct vm_vector {
 
     void pop_back ( ) noexcept {
         assert ( size ( ) );
+        m_end--;
         if constexpr ( not std::is_trivial<value_type>::value )
-            back ( ).~value_type ( );
-        --m_end;
+            m_end->~value_type ( );
     }
 
     [[nodiscard]] const_pointer data ( ) const noexcept { return m_begin; }
@@ -314,7 +314,7 @@ struct vm_concurrent_vector {
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
         pointer p;
         {
-            std::scoped_lock lock ( m_mutex );
+            std::lock_guard lock ( m_mutex );
             if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) ) {
                 size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : allocation_page_size_b, capacity_b ( ) );
                 if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - m_committed_b, MEM_COMMIT, PAGE_READWRITE ) ) )
@@ -328,10 +328,13 @@ struct vm_concurrent_vector {
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
 
     void pop_back ( ) noexcept {
-        assert ( size ( ) );
+        {
+            std::lock_guard lock ( m_mutex );
+            assert ( size ( ) );
+            m_end--;
+        }
         if constexpr ( not std::is_trivial<value_type>::value )
-            back ( ).~value_type ( );
-        --m_end;
+            m_end->~value_type ( );
     }
 
     [[nodiscard]] const_pointer data ( ) const noexcept { return m_begin; }
@@ -387,7 +390,7 @@ struct vm_concurrent_vector {
     }
 
     void await_construction ( const_iterator element_ ) const noexcept {
-        while ( not element_->atom ) // await construction.
+        while ( HEDLEY_UNLIKELY ( not element_->atom ) ) // await construction.
             std::this_thread::yield ( );
     }
     void await_construction ( const_reference element_ ) const noexcept { await_construction ( std::addressof ( element_ ) ); }
