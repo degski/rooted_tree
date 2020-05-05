@@ -36,7 +36,6 @@
 #endif
 
 #include <limits>
-#include <mutex>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -197,7 +196,6 @@ struct rooted_tree_base {
     using data = std::conditional_t<is_concurrent::value, tbb::concurrent_vector<value_type, tbb::zero_allocator<value_type>>,
                                     std::vector<value_type>>;
 
-    public:
     struct dummy_mutex final {
         dummy_mutex ( ) noexcept                = default;
         dummy_mutex ( dummy_mutex const & )     = delete;
@@ -222,8 +220,9 @@ struct rooted_tree_base {
         dummy_scoped_lock & operator= ( dummy_scoped_lock && ) noexcept = default;
     };
 
+    public:
     using mutex           = std::conditional_t<is_concurrent::value, tbb::spin_mutex, dummy_mutex>;
-    using scoped_lock     = std::conditional_t<is_concurrent::value, std::scoped_lock<tbb::spin_mutex>, dummy_scoped_lock>;
+    using scoped_lock     = std::conditional_t<is_concurrent::value, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
     using size_type       = int;
     using difference_type = int;
     using reference       = typename data::reference;
