@@ -268,8 +268,7 @@ struct vm_concurrent_vector {
     using reverse_iterator       = pointer;
     using const_reverse_iterator = const_pointer;
 
-    using mutex       = detail::srw_lock;
-    using scoped_lock = std::scoped_lock;
+    using mutex = detail::srw_lock;
 
     vm_concurrent_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
