@@ -36,6 +36,7 @@
 #endif
 
 #include <limits>
+#include <mutex>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -149,9 +150,9 @@ inline constexpr int reserve_size = 1'024;
 
 // Hooks.
 
-struct rooted_tree_hook {                                // 16 bytes.
-    nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 }; // prev is prev-leaf-node for leaf-nodes
-    int fan = 0;                                         // 0 <= fan-out < 2'147'483'648.
+struct rooted_tree_hook { // 16 bytes.
+    nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
+    int fan = 0; // 0 <= fan-out < 2'147'483'648.
 
 #if USE_IO
     template<typename Stream>
@@ -179,7 +180,7 @@ struct rooted_tree_hook {                                // 16 bytes.
 template<typename Node>
 struct rooted_tree_node_mutex : public Node { // 2 bytes.
     tbb::spin_mutex lock;
-    tbb::atomic<char const> done = 1; // Indicates node is constructed (allocated with zeroed memory).
+    tbb::atomic<char> done = 1; // Indicates node is constructed (allocated with zeroed memory).
     template<typename... Args>
     rooted_tree_node_mutex ( Args &&... args_ ) : Node{ std::forward<Args> ( args_ )... } { };
 };
@@ -339,19 +340,20 @@ struct rooted_tree_base {
             if ( tree[ nid_.id ].fan ) {
                 node = nid_;
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                    push ( stack, child );
+                    if ( tree[ child.id ].fan )
+                        push ( stack, child );
             }
             else {
                 node = rooted_tree_base::invalid;
-                return *this;
             }
         }
         [[maybe_unused]] internal_iterator & operator++ ( ) {
             if ( stack.size ( ) ) {
                 node = pop ( stack );
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                    if ( tree[ node.id ].fan )
+                    if ( tree[ child.id ].fan )
                         push ( stack, child );
+                return *this;
             }
             else {
                 node = rooted_tree_base::invalid;
@@ -375,19 +377,20 @@ struct rooted_tree_base {
             if ( tree[ nid_.id ].fan ) {
                 node = nid_;
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                    push ( stack, child );
+                    if ( tree[ child.id ].fan )
+                        push ( stack, child );
             }
             else {
                 node = rooted_tree_base::invalid;
-                return *this;
             }
         }
         [[maybe_unused]] const_internal_iterator & operator++ ( ) {
             if ( stack.size ( ) ) {
                 node = pop ( stack );
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                    if ( tree[ node.id ].fan )
+                    if ( tree[ child.id ].fan )
                         push ( stack, child );
+                return *this;
             }
             else {
                 node = rooted_tree_base::invalid;
@@ -410,15 +413,10 @@ struct rooted_tree_base {
         leaf_iterator ( rooted_tree_base & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ } {
             for ( nid child = tree[ nid_.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                 push ( stack, child );
-            if ( stack.size ( ) ) {
-                node = pop ( stack );
-                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                    push ( stack, child );
-            }
-            else {
+            if ( stack.size ( ) )
+                this->operator++ ( );
+            else
                 node = rooted_tree_base::invalid;
-                return *this;
-            }
         }
         [[maybe_unused]] leaf_iterator & operator++ ( ) {
             while ( true ) {
@@ -451,15 +449,10 @@ struct rooted_tree_base {
         const_leaf_iterator ( rooted_tree_base const & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ } {
             for ( nid child = tree[ nid_.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                 push ( stack, child );
-            if ( stack.size ( ) ) {
-                node = pop ( stack );
-                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                    push ( stack, child );
-            }
-            else {
+            if ( stack.size ( ) )
+                this->operator++ ( );
+            else
                 node = rooted_tree_base::invalid;
-                return *this;
-            }
         }
         [[maybe_unused]] const_leaf_iterator & operator++ ( ) {
             while ( true ) {

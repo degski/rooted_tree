@@ -250,8 +250,6 @@ int main ( ) {
     sax::nid n12 = tree.emplace ( n2, 12 );
     sax::nid n13 = tree.emplace ( n12, 13 );
 
-    /*
-
     for ( Tree::const_out_iterator it{ tree, Tree::root }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
@@ -260,17 +258,11 @@ int main ( ) {
         std::cout << it->value << sp;
     std::cout << nl;
 
-    */
-
     int w;
 
     std::cout << tree.height ( tree.root, &w ) << sp << w << nl;
 
-    for ( Tree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
-        std::cout << it.id ( ) << sp;
-    std::cout << nl;
-
-    for ( Tree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+    for ( Tree::const_internal_iterator it{ tree }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 
@@ -278,7 +270,11 @@ int main ( ) {
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 
-    for ( Tree::const_internal_iterator it{ tree }; it.is_valid ( ); ++it )
+    for ( Tree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+        std::cout << it.id ( ) << sp;
+    std::cout << nl;
+
+    for ( Tree::const_breadth_iterator it{ tree }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 
