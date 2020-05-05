@@ -149,9 +149,9 @@ inline constexpr int reserve_size = 1'024;
 
 // Hooks.
 
-struct rooted_tree_hook { // 16 bytes.
-    nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 };
-    int fan = 0; // 0 <= fan-out < 2'147'483'648.
+struct rooted_tree_hook {                                // 16 bytes.
+    nid up = nid{ 0 }, prev = nid{ 0 }, tail = nid{ 0 }; // prev is prev-leaf-node for leaf-nodes
+    int fan = 0;                                         // 0 <= fan-out < 2'147'483'648.
 
 #if USE_IO
     template<typename Stream>
@@ -328,6 +328,150 @@ struct rooted_tree_base {
         }
     }
 
+    class internal_iterator {
+        friend struct rooted_tree_base;
+        rooted_tree_base & tree;
+        id_vector stack;
+        nid node;
+
+        public:
+        internal_iterator ( rooted_tree_base & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ } {
+            if ( tree[ nid_.id ].fan ) {
+                node = nid_;
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    push ( stack, child );
+            }
+        }
+        [[maybe_unused]] internal_iterator & operator++ ( ) {
+            while ( true ) {
+                if ( stack.size ( ) ) {
+                    node = pop ( stack );
+                    for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                        push ( stack, child );
+                    if ( tree[ node.id ].fan )
+                        return *this;
+                }
+                else {
+                    node = rooted_tree_base::invalid;
+                    return *this;
+                }
+            }
+        }
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    class const_internal_iterator {
+        friend struct rooted_tree_base;
+        rooted_tree_base const & tree;
+        id_vector stack;
+        nid node;
+
+        public:
+        const_internal_iterator ( rooted_tree_base const & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ } {
+            if ( tree[ nid_.id ].fan ) {
+                node = nid_;
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    push ( stack, child );
+            }
+        }
+        [[maybe_unused]] const_internal_iterator & operator++ ( ) {
+            while ( true ) {
+                if ( stack.size ( ) ) {
+                    node = pop ( stack );
+                    for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                        push ( stack, child );
+                    if ( tree[ node.id ].fan )
+                        return *this;
+                }
+                else {
+                    node = rooted_tree_base::invalid;
+                    return *this;
+                }
+            }
+        }
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    class leaf_iterator {
+        friend struct rooted_tree_base;
+        rooted_tree_base & tree;
+        id_vector stack;
+        nid node;
+
+        public:
+        leaf_iterator ( rooted_tree_base & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ } {
+            for ( nid child = tree[ nid_.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                push ( stack, child );
+            if ( stack.size ( ) ) {
+                node = pop ( stack );
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    push ( stack, child );
+            }
+        }
+        [[maybe_unused]] leaf_iterator & operator++ ( ) {
+            while ( true ) {
+                if ( stack.size ( ) ) {
+                    node = pop ( stack );
+                    if ( not tree[ node.id ].fan )
+                        return *this;
+                    for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                        push ( stack, child );
+                }
+                else {
+                    node = rooted_tree_base::invalid;
+                    return *this;
+                }
+            }
+        }
+        [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
+    class const_leaf_iterator {
+        friend struct rooted_tree_base;
+        rooted_tree_base const & tree;
+        id_vector stack;
+        nid node;
+
+        public:
+        const_leaf_iterator ( rooted_tree_base const & tree_, nid nid_ = rooted_tree_base::root ) : tree{ tree_ } {
+            for ( nid child = tree[ nid_.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                push ( stack, child );
+            if ( stack.size ( ) ) {
+                node = pop ( stack );
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                    push ( stack, child );
+            }
+        }
+        [[maybe_unused]] const_leaf_iterator & operator++ ( ) {
+            while ( true ) {
+                if ( stack.size ( ) ) {
+                    node = pop ( stack );
+                    if ( not tree[ node.id ].fan )
+                        return *this;
+                    for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
+                        push ( stack, child );
+                }
+                else {
+                    node = rooted_tree_base::invalid;
+                    return *this;
+                }
+            }
+        }
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( tree[ node.id ] ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return node.is_valid ( ); }
+        [[nodiscard]] nid id ( ) const noexcept { return node; }
+    };
+
     class depth_iterator {
         friend struct rooted_tree_base;
         rooted_tree_base & tree;
@@ -340,7 +484,7 @@ struct rooted_tree_base {
                 push ( stack, child );
         }
         [[maybe_unused]] depth_iterator & operator++ ( ) {
-            if ( size_type stack_size = static_cast<size_type> ( stack.size ( ) ); static_cast<bool> ( stack_size ) ) {
+            if ( stack.size ( ) ) {
                 node = pop ( stack );
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
@@ -369,7 +513,7 @@ struct rooted_tree_base {
                 push ( stack, child );
         }
         [[maybe_unused]] const_depth_iterator & operator++ ( ) {
-            if ( size_type stack_size = static_cast<size_type> ( stack.size ( ) ); static_cast<bool> ( stack_size ) ) {
+            if ( stack.size ( ) ) {
                 node = pop ( stack );
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
@@ -584,7 +728,7 @@ struct rooted_tree_base {
             {
                 scoped_lock lock ( nodes[ pid_.id ].lock );
                 cnode_->prev = std::exchange ( nodes[ pid_.id ].tail, cid_ );
-                nodes[ pid_.id ].fan += 1;
+                nodes[ pid_.id ].fan++;
             }
             return cid_;
         }

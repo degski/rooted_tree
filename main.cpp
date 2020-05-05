@@ -109,7 +109,7 @@ void add_nodes_low_workload ( Tree & tree_, int n_ ) {
                         i );
 }
 
-int main ( ) {
+int main75675 ( ) {
 
     {
         std::cout << "sequential tree lw" << nl;
@@ -230,7 +230,7 @@ int main ( ) {
     return EXIT_SUCCESS;
 }
 
-int main76868678 ( ) {
+int main ( ) {
 
     using Tree = SequentailTree;
 
@@ -271,6 +271,14 @@ int main76868678 ( ) {
     std::cout << nl;
 
     for ( Tree::const_depth_iterator it{ tree }; it.is_valid ( ); ++it )
+        std::cout << it.id ( ) << sp;
+    std::cout << nl;
+
+    for ( Tree::const_leaf_iterator it{ tree }; it.is_valid ( ); ++it )
+        std::cout << it.id ( ) << sp;
+    std::cout << nl;
+
+    for ( Tree::const_internal_iterator it{ tree }; it.is_valid ( ); ++it )
         std::cout << it.id ( ) << sp;
     std::cout << nl;
 
