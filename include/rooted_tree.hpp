@@ -341,20 +341,21 @@ struct rooted_tree_base {
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
             }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
+            }
         }
         [[maybe_unused]] internal_iterator & operator++ ( ) {
-            while ( true ) {
-                if ( stack.size ( ) ) {
-                    node = pop ( stack );
-                    for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                        push ( stack, child );
+            if ( stack.size ( ) ) {
+                node = pop ( stack );
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     if ( tree[ node.id ].fan )
-                        return *this;
-                }
-                else {
-                    node = rooted_tree_base::invalid;
-                    return *this;
-                }
+                        push ( stack, child );
+            }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
             }
         }
         [[nodiscard]] reference operator* ( ) const noexcept { return tree[ node.id ]; }
@@ -376,20 +377,21 @@ struct rooted_tree_base {
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
             }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
+            }
         }
         [[maybe_unused]] const_internal_iterator & operator++ ( ) {
-            while ( true ) {
-                if ( stack.size ( ) ) {
-                    node = pop ( stack );
-                    for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
-                        push ( stack, child );
+            if ( stack.size ( ) ) {
+                node = pop ( stack );
+                for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     if ( tree[ node.id ].fan )
-                        return *this;
-                }
-                else {
-                    node = rooted_tree_base::invalid;
-                    return *this;
-                }
+                        push ( stack, child );
+            }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
             }
         }
         [[nodiscard]] const_reference operator* ( ) const noexcept { return tree[ node.id ]; }
@@ -412,6 +414,10 @@ struct rooted_tree_base {
                 node = pop ( stack );
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
+            }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
             }
         }
         [[maybe_unused]] leaf_iterator & operator++ ( ) {
@@ -449,6 +455,10 @@ struct rooted_tree_base {
                 node = pop ( stack );
                 for ( nid child = tree[ node.id ].tail; child.is_valid ( ); child = tree[ child.id ].prev )
                     push ( stack, child );
+            }
+            else {
+                node = rooted_tree_base::invalid;
+                return *this;
             }
         }
         [[maybe_unused]] const_leaf_iterator & operator++ ( ) {
