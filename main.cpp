@@ -297,7 +297,7 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
 
-        sax::vm_vector<Bar, int, 500'000'000> vec;
+        sax::vm_concurrent_vector<Bar, int, 100'000'000> vec;
 
         for ( int i = 0; i < 2'000'000; ++i )
             vec.emplace_back ( i );
@@ -310,7 +310,7 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
 
-        std::vector<Bar> vec;
+        std::vector<sax::vm_epilog<Bar>> vec;
         vec.reserve ( 2'000'000 );
 
         for ( int i = 0; i < 2'000'000; ++i )
@@ -324,7 +324,7 @@ int main ( ) {
         plf::nanotimer timer;
         timer.start ( );
 
-        sax::vm_vector<Bar, int, 500'000'000> vec;
+        sax::vm_concurrent_vector<Bar, int, 100'000'000> vec;
 
         for ( int i = 0; i < 2'000'000; ++i )
             vec.emplace_back ( i );
