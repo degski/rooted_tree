@@ -27,6 +27,11 @@
 #    define NOMINMAX
 #endif
 
+#ifndef _AMD64_
+#    define _AMD64_ // srw_lock
+#endif
+#include <windef.h>
+#include <WinBase.h>
 #include <Memoryapi.h>
 
 #include <cassert>
@@ -43,11 +48,53 @@
 #include <type_traits>
 #include <utility>
 
+#include <tbb/concurrent_vector.h>
 #include <tbb/spin_mutex.h>
 
 #include <hedley.hpp>
 
+#include <atomic>
+
 namespace sax {
+
+struct spin_lock final {
+
+    spin_lock ( ) noexcept {}
+    spin_lock ( const spin_lock & ) = delete;
+    spin_lock & operator= ( const spin_lock & ) = delete;
+
+    void lock ( ) noexcept {
+        while ( flag.test_and_set ( std::memory_order_acquire ) )
+            ;
+    }
+    [[nodiscard]] bool try_lock ( ) noexcept { return not( flag.test_and_set ( std::memory_order_acquire ) ); }
+    void unlock ( ) noexcept { flag.clear ( std::memory_order_release ); }
+
+    private:
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+};
+
+struct srw_lock final {
+
+    srw_lock ( ) noexcept             = default;
+    srw_lock ( srw_lock && ) noexcept = default;
+    ~srw_lock ( )                     = default;
+    srw_lock & operator= ( srw_lock && ) noexcept = default;
+
+    srw_lock ( srw_lock const & ) = delete;
+    srw_lock & operator= ( srw_lock const & ) = delete;
+
+    void lock ( ) noexcept { AcquireSRWLockExclusive ( &m_handle ); }
+    [[nodiscard]] bool try_lock ( ) noexcept { return 0 != TryAcquireSRWLockExclusive ( &m_handle ); }
+    void unlock ( ) noexcept { ReleaseSRWLockExclusive ( &m_handle ); } // Look at this...
+
+    void lock ( ) const noexcept { AcquireSRWLockShared ( &m_handle ); }
+    [[nodiscard]] bool try_lock ( ) const noexcept { return 0 != TryAcquireSRWLockShared ( &m_handle ); }
+    void unlock ( ) const noexcept { ReleaseSRWLockShared ( &m_handle ); }
+
+    private:
+    mutable SRWLOCK m_handle = SRWLOCK_INIT;
+};
 
 template<typename ValueType, typename SizeType, SizeType Capacity>
 struct vm_vector {
@@ -231,8 +278,8 @@ struct vm_concurrent_vector {
     using reverse_iterator       = pointer;
     using const_reverse_iterator = const_pointer;
 
-    using mutex       = tbb::spin_mutex;
-    using scoped_lock = tbb::spin_mutex::scoped_lock;
+    using mutex       = sax::srw_lock;
+    using scoped_lock = std::scoped_lock;
 
     vm_concurrent_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
@@ -277,7 +324,7 @@ struct vm_concurrent_vector {
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
         pointer p;
         {
-            scoped_lock lock ( m_mutex );
+            std::scoped_lock lock ( m_mutex );
             if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) ) {
                 size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : allocation_page_size_b, capacity_b ( ) );
                 if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - m_committed_b, MEM_COMMIT, PAGE_READWRITE ) ) )

@@ -291,57 +291,116 @@ int main7867867 ( ) {
     return EXIT_SUCCESS;
 }
 
+using Vec  = sax::vm_vector<sax::vm_epilog<Bar>, int, 100'000'000>;
+using CVec = sax::vm_concurrent_vector<Bar, int, 100'000'000>;
+
+using TbbVec = tbb::concurrent_vector<sax::vm_epilog<Bar>, tbb::zero_allocator<Bar>>;
+
+template<typename Type>
+void emplace_back_low_workload ( Type & vec_, int n_ ) {
+    for ( int i = 1; i < n_; ++i )
+        vec_.emplace_back ( i );
+}
+
 int main ( ) {
 
     {
+        std::cout << "vector lw" << nl;
+        Vec vec;
+
         plf::nanotimer timer;
         timer.start ( );
 
-        sax::vm_concurrent_vector<Bar, int, 100'000'000> vec;
-
-        for ( int i = 0; i < 2'000'000; ++i )
-            vec.emplace_back ( i );
+        emplace_back_low_workload ( vec, 4'000'000 );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
     }
 
     {
+        std::cout << "vector (concurrent) lw" << nl;
+        CVec vec;
+
+        std::vector<std::thread> threads;
+        threads.reserve ( 4 );
+
         plf::nanotimer timer;
         timer.start ( );
 
-        std::vector<sax::vm_epilog<Bar>> vec;
-        vec.reserve ( 2'000'000 );
-
-        for ( int i = 0; i < 2'000'000; ++i )
-            vec.emplace_back ( i );
+        for ( int n = 0; n < 4; ++n )
+            threads.emplace_back ( emplace_back_low_workload<CVec>, std::ref ( vec ), 1'000'000 );
+        for ( std::thread & t : threads )
+            t.join ( );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
     }
 
     {
+        std::cout << "tbb-vector (concurrent) lw" << nl;
+        TbbVec vec;
+
+        std::vector<std::thread> threads;
+        threads.reserve ( 4 );
+
         plf::nanotimer timer;
         timer.start ( );
 
-        sax::vm_concurrent_vector<Bar, int, 100'000'000> vec;
-
-        for ( int i = 0; i < 2'000'000; ++i )
-            vec.emplace_back ( i );
+        for ( int n = 0; n < 4; ++n )
+            threads.emplace_back ( emplace_back_low_workload<TbbVec>, std::ref ( vec ), 1'000'000 );
+        for ( std::thread & t : threads )
+            t.join ( );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
     }
 
     {
+        std::cout << "vector lw" << nl;
+        Vec vec;
+
         plf::nanotimer timer;
         timer.start ( );
 
-        std::vector<Bar> vec;
-        vec.reserve ( 2'000'000 );
+        emplace_back_low_workload ( vec, 4'000'000 );
 
-        for ( int i = 0; i < 2'000'000; ++i )
-            vec.emplace_back ( i );
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
+    }
+
+    {
+        std::cout << "vector (concurrent) lw" << nl;
+        CVec vec;
+
+        std::vector<std::thread> threads;
+        threads.reserve ( 4 );
+
+        plf::nanotimer timer;
+        timer.start ( );
+
+        for ( int n = 0; n < 4; ++n )
+            threads.emplace_back ( emplace_back_low_workload<CVec>, std::ref ( vec ), 1'000'000 );
+        for ( std::thread & t : threads )
+            t.join ( );
+
+        std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+        std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
+    }
+
+    {
+        std::cout << "tbb-vector (concurrent) lw" << nl;
+        TbbVec vec;
+
+        std::vector<std::thread> threads;
+        threads.reserve ( 4 );
+
+        plf::nanotimer timer;
+        timer.start ( );
+
+        for ( int n = 0; n < 4; ++n )
+            threads.emplace_back ( emplace_back_low_workload<TbbVec>, std::ref ( vec ), 1'000'000 );
+        for ( std::thread & t : threads )
+            t.join ( );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
