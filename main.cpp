@@ -232,7 +232,7 @@ int main75675 ( ) {
 
 int main ( ) {
 
-    using Tree = SequentailTree;
+    using Tree = ConcurrentTree;
 
     Tree tree ( 1 );
 

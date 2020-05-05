@@ -223,7 +223,7 @@ struct rooted_tree_base {
     };
 
     using mutex           = std::conditional_t<is_concurrent::value, tbb::spin_mutex, dummy_mutex>;
-    using scoped_lock     = std::conditional_t<is_concurrent::value, tbb::spin_mutex::scoped_lock, dummy_scoped_lock>;
+    using scoped_lock     = std::conditional_t<is_concurrent::value, std::scoped_lock<tbb::spin_mutex>, dummy_scoped_lock>;
     using size_type       = int;
     using difference_type = int;
     using reference       = typename data::reference;
