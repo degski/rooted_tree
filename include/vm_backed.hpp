@@ -311,7 +311,7 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        constexpr std::size_t thread_reserve_size = 4;
+        constexpr std::size_t thread_reserve_size = 16;
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_mutex );
