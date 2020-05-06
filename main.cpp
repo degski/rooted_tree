@@ -303,7 +303,7 @@ void emplace_back_low_workload ( Type & vec_, int n_ ) {
 }
 
 int main ( ) {
-
+    /*
     {
         std::cout << "vector lw" << nl;
         Vec vec;
@@ -316,7 +316,7 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
     }
-
+    */
     {
         std::cout << "vector (concurrent) lw" << nl;
         CVec vec;
@@ -333,9 +333,12 @@ int main ( ) {
             t.join ( );
 
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+
+        vec.await_construction ( vec.back ( ) );
+
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
     }
-
+    /*
     {
         std::cout << "tbb-vector (concurrent) lw" << nl;
         TbbVec vec;
@@ -405,6 +408,6 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.back ( ).value << nl;
     }
-
+    */
     return EXIT_SUCCESS;
 }

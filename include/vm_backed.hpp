@@ -273,7 +273,7 @@ struct vm_concurrent_vector {
 
     vm_concurrent_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, m_thread_end{ construct_thread_data ( ) }, m_committed_b{ 0u } {
+        m_end{ m_begin }, tl{ construct_thread_local_data ( ) }, m_committed_b{ 0u } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -311,16 +311,20 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        pointer p;
-        {
-            std::lock_guard lock ( m_mutex );
-            if ( HEDLEY_PREDICT ( size_b ( ) == m_committed_b, false,
-                                  1.0 -
-                                      static_cast<double> ( sizeof ( value_type ) ) / static_cast<double> ( alloc_page_size_b ) ) )
-                allocate_page ( );
-            p = m_end++;
+        constexpr std::size_t thread_reserve_size = 1;
+        if ( tl.begin == tl.end ) {
+            {
+                std::lock_guard lock ( m_mutex );
+                if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_committed_b, false,
+                                      1.0 - static_cast<double> ( sizeof ( value_type ) ) /
+                                                static_cast<double> ( alloc_page_size_b ) ) )
+                    allocate_page ( );
+                tl.begin = m_end;
+                m_end += thread_reserve_size;
+            }
+            tl.end = tl.begin + thread_reserve_size;
         }
-        return *new ( p ) value_type{ std::forward<Args> ( value_ )... };
+        return *new ( tl.begin++ ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
 
@@ -412,7 +416,7 @@ struct vm_concurrent_vector {
     }
 
     HEDLEY_NEVER_INLINE void allocate_page ( ) {
-        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, alloc_page_size_b, MEM_COMMIT, PAGE_READWRITE ) ) )
+        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_begin + m_committed_b, alloc_page_size_b, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
         m_committed_b += alloc_page_size_b;
     }
@@ -421,13 +425,13 @@ struct vm_concurrent_vector {
         pointer begin = nullptr, end = nullptr;
     };
 
-    [[nodiscard]] thread_data & construct_thread_data ( ) noexcept {
+    [[nodiscard]] thread_data & construct_thread_local_data ( ) noexcept {
         static thread_local thread_data data;
         return data;
     }
 
     pointer m_begin, m_end;
-    thread_data & m_thread;
+    thread_data & tl;
     mutex m_mutex;
     std::size_t m_committed_b;
 };
