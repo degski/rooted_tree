@@ -284,19 +284,18 @@ struct vm_concurrent_vector {
     }
 
     explicit vm_concurrent_vector ( size_type s_, value_type const & v_ ) : vm_concurrent_vector{ } {
-        auto required = round_up_to_os_vm_page_size_b ( s_ * sizeof ( value_type ) );
-        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, required, MEM_COMMIT, PAGE_READWRITE ) ) )
+        auto required_b = round_up_to_os_vm_page_size_b ( s_ * sizeof ( value_type ) );
+        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, required_b, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
-        m_committed_b = required;
+        m_committed_b = required_b;
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
 
     ~vm_concurrent_vector ( ) {
-        if constexpr ( not std::is_trivial<value_type>::value ) {
+        if constexpr ( not std::is_trivial<value_type>::value )
             for ( value_type & v : *this )
                 v.~value_type ( );
-        }
         if ( HEDLEY_LIKELY ( m_begin ) ) {
             VirtualFree ( m_begin, capacity_b ( ), MEM_RELEASE );
             m_end = m_begin = nullptr;
@@ -306,7 +305,7 @@ struct vm_concurrent_vector {
 
     [[nodiscard]] constexpr size_type capacity ( ) const noexcept { return capacity_b ( ) / sizeof ( value_type ); }
     [[nodiscard]] size_type size ( ) const noexcept {
-        return reinterpret_cast<value_type *> ( m_end ) - reinterpret_cast<value_type *> ( m_begin );
+        return static_cast<std::size_t> ( reinterpret_cast<value_type *> ( m_end ) - reinterpret_cast<value_type *> ( m_begin ) );
     }
     [[nodiscard]] constexpr size_type max_size ( ) const noexcept { return capacity ( ); }
 
