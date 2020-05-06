@@ -252,19 +252,6 @@ struct srw_lock final {
 
 } // namespace detail
 
-namespace thread_id {
-// Creates a new ID.
-[[nodiscard]] inline int next ( ) noexcept {
-    static std::atomic<int> id = 0;
-    return id++;
-}
-// Returns ID of this thread.
-[[nodiscard]] inline int get ( ) noexcept {
-    static thread_local int tl_id = next ( );
-    return tl_id;
-}
-} // namespace thread_id
-
 template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
 
@@ -335,7 +322,7 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        thread_data & tl = m_thread_data[ thread_id::get ( ) ];
+        thread_data & tl = m_thread_data[ get_thread_id ( ) ];
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_mutex );
@@ -444,6 +431,16 @@ struct vm_concurrent_vector {
         if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_begin + m_committed_b, alloc_page_size_b, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
         m_committed_b += alloc_page_size_b;
+    }
+
+    [[nodiscard]] static std::size_t next_thread_id ( ) noexcept {
+        static std::atomic<std::size_t> id = 0;
+        return id++;
+    }
+    // Returns ID of this thread.
+    [[nodiscard]] static std::size_t get_thread_id ( ) noexcept {
+        static thread_local std::size_t tl_id = next_thread_id ( );
+        return tl_id;
     }
 
     static thread_data_array m_thread_data;
