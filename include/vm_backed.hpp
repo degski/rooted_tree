@@ -132,6 +132,7 @@ struct vm_vector {
         return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
+    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) } );
 
     void pop_back ( ) noexcept {
         assert ( size ( ) );
@@ -327,6 +328,7 @@ struct vm_concurrent_vector {
         return *new ( tl.begin++ ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
+    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) } );
 
     void pop_back ( ) noexcept {
         {
@@ -434,6 +436,6 @@ struct vm_concurrent_vector {
     thread_data & tl;
     mutex m_mutex;
     std::size_t m_committed_b;
-};
+}; // namespace sax
 
 } // namespace sax
