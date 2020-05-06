@@ -311,7 +311,7 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        constexpr std::size_t thread_reserve_size = 1;
+        constexpr std::size_t thread_reserve_size = 4;
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_mutex );
@@ -397,7 +397,7 @@ struct vm_concurrent_vector {
     void await_construction ( const_reference element_ ) const noexcept { await_construction ( std::addressof ( element_ ) ); }
     void await_construction ( size_type element_ ) const noexcept { await_construction ( data ( ) + element_ ); }
 
-    private:
+    // private:
     static constexpr std::size_t os_vm_page_size_b = static_cast<std::size_t> ( 65'536 );         // 64KB on windows.
     static constexpr std::size_t alloc_page_size_b = static_cast<std::size_t> ( 1'024 * 65'536 ); // 64MB
 
