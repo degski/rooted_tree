@@ -48,6 +48,7 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -61,7 +62,7 @@
 
 namespace sax {
 
-template<typename ValueType, typename SizeType, SizeType Capacity>
+template<typename ValueType, std::size_t Capacity>
 struct vm_vector {
 
     using value_type = ValueType;
@@ -73,7 +74,7 @@ struct vm_vector {
     using const_reference = value_type const &;
     using rv_reference    = value_type &&;
 
-    using size_type       = SizeType;
+    using size_type       = std::size_t;
     using difference_type = std::make_signed<size_type>;
 
     using iterator               = pointer;
@@ -123,7 +124,7 @@ struct vm_vector {
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
         if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) ) {
-            size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : allocation_page_size_b, capacity_b ( ) );
+            size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : alloc_page_size_b, capacity_b ( ) );
             if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - m_committed_b, MEM_COMMIT, PAGE_READWRITE ) ) )
                 throw std::bad_alloc ( );
             m_committed_b = cib;
@@ -192,25 +193,23 @@ struct vm_vector {
     }
 
     private:
-    static constexpr size_type page_size_b            = static_cast<size_type> ( 65'536 );         // 64KB
-    static constexpr size_type allocation_page_size_b = static_cast<size_type> ( 1'600 * 65'536 ); // 100MB
+    static constexpr size_type os_vm_page_size_b = static_cast<size_type> ( 65'536 );         // 64KB
+    static constexpr size_type alloc_page_size_b = static_cast<size_type> ( 1'600 * 65'536 ); // 100MB
 
     [[nodiscard]] size_type required_b ( size_type const & r_ ) const noexcept {
         std::size_t req = static_cast<std::size_t> ( r_ ) * sizeof ( value_type );
-        return req % page_size_b ? ( ( req + page_size_b ) / page_size_b ) * page_size_b : req;
+        return req % os_vm_page_size_b ? ( ( req + os_vm_page_size_b ) / os_vm_page_size_b ) * os_vm_page_size_b : req;
     }
     [[nodiscard]] constexpr size_type capacity_b ( ) const noexcept {
         constexpr std::size_t cap = static_cast<std::size_t> ( Capacity ) * sizeof ( value_type );
-        return cap % page_size_b ? ( ( cap + page_size_b ) / page_size_b ) * page_size_b : cap;
+        return cap % os_vm_page_size_b ? ( ( cap + os_vm_page_size_b ) / os_vm_page_size_b ) * os_vm_page_size_b : cap;
     }
     [[nodiscard]] size_type size_b ( ) const noexcept {
         return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
-    [[nodiscard]] HEDLEY_PURE size_type grow ( size_type const & cap_b_ ) const noexcept { return cap_b_ + allocation_page_size_b; }
-    [[nodiscard]] HEDLEY_PURE size_type shrink ( size_type const & cap_b_ ) const noexcept {
-        return cap_b_ - allocation_page_size_b;
-    }
+    [[nodiscard]] HEDLEY_PURE size_type grow ( size_type const & cap_b_ ) const noexcept { return cap_b_ + alloc_page_size_b; }
+    [[nodiscard]] HEDLEY_PURE size_type shrink ( size_type const & cap_b_ ) const noexcept { return cap_b_ - alloc_page_size_b; }
 
     pointer m_begin, m_end;
     size_type m_committed_b;
@@ -250,7 +249,7 @@ struct srw_lock final {
 
 } // namespace detail
 
-template<typename ValueType, typename SizeType, SizeType Capacity>
+template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
 
     using value_type = detail::vm_epilog<ValueType>;
@@ -262,7 +261,7 @@ struct vm_concurrent_vector {
     using const_reference = value_type const &;
     using rv_reference    = value_type &&;
 
-    using size_type       = SizeType;
+    using size_type       = std::size_t;
     using difference_type = std::make_signed<size_type>;
 
     using iterator               = pointer;
@@ -284,11 +283,11 @@ struct vm_concurrent_vector {
             push_back ( v );
     }
 
-    explicit vm_concurrent_vector ( size_type const s_, value_type const & v_ ) : vm_concurrent_vector{ } {
-        size_type rc = required_b ( s_ );
-        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, rc, MEM_COMMIT, PAGE_READWRITE ) ) )
+    explicit vm_concurrent_vector ( size_type s_, value_type const & v_ ) : vm_concurrent_vector{ } {
+        auto required = round_up_to_os_vm_page_size_b ( s_ * sizeof ( value_type ) );
+        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, required, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
-        m_committed_b = rc;
+        m_committed_b = required;
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
@@ -316,7 +315,9 @@ struct vm_concurrent_vector {
         pointer p;
         {
             std::lock_guard lock ( m_mutex );
-            if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) )
+            if ( HEDLEY_PREDICT ( size_b ( ) == m_committed_b, false,
+                                  1.0 -
+                                      static_cast<double> ( sizeof ( value_type ) ) / static_cast<double> ( alloc_page_size_b ) ) )
                 allocate_page ( );
             p = m_end++;
         }
@@ -394,33 +395,32 @@ struct vm_concurrent_vector {
     void await_construction ( size_type element_ ) const noexcept { await_construction ( data ( ) + element_ ); }
 
     private:
-    static constexpr size_type page_size_b            = static_cast<size_type> ( 65'536 );         // 64KB
-    static constexpr size_type allocation_page_size_b = static_cast<size_type> ( 1'024 * 65'536 ); // 64MB
+    static constexpr std::size_t os_vm_page_size_b = static_cast<std::size_t> ( 65'536 );         // 64KB on windows.
+    static constexpr std::size_t alloc_page_size_b = static_cast<std::size_t> ( 1'024 * 65'536 ); // 64MB
 
-    [[nodiscard]] size_type required_b ( size_type const & r_ ) const noexcept {
-        std::size_t req = static_cast<std::size_t> ( r_ ) * sizeof ( value_type );
-        return req % page_size_b ? ( ( req + page_size_b ) / page_size_b ) * page_size_b : req;
+    [[nodiscard]] constexpr std::size_t round_up_to_os_vm_page_size_b ( std::size_t n_ ) const noexcept {
+        return ( ( n_ + os_vm_page_size_b - 1 ) / os_vm_page_size_b ) * os_vm_page_size_b;
     }
-    [[nodiscard]] constexpr size_type capacity_b ( ) const noexcept {
-        constexpr std::size_t req_cap = static_cast<std::size_t> ( Capacity ) * sizeof ( value_type );
-        std::size_t cap               = allocation_page_size_b;
-        while ( req_cap > cap )
-            cap += allocation_page_size_b;
-        return cap;
+    [[nodiscard]] constexpr std::size_t round_up_to_alloc_page_size_b ( std::size_t n_ ) const noexcept {
+        return ( ( n_ + alloc_page_size_b - 1 ) / alloc_page_size_b ) * alloc_page_size_b;
     }
-    [[nodiscard]] size_type size_b ( ) const noexcept {
-        return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
+
+    [[nodiscard]] constexpr std::size_t capacity_b ( ) const noexcept {
+        return round_up_to_alloc_page_size_b ( Capacity * sizeof ( value_type ) );
+    }
+    [[nodiscard]] std::size_t size_b ( ) const noexcept {
+        return static_cast<std::size_t> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
     HEDLEY_NEVER_INLINE void allocate_page ( ) {
-        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, allocation_page_size_b, MEM_COMMIT, PAGE_READWRITE ) ) )
+        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, alloc_page_size_b, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
-        m_committed_b += allocation_page_size_b;
+        m_committed_b += alloc_page_size_b;
     }
 
     pointer m_begin, m_end;
     mutex m_mutex;
-    size_type m_committed_b;
+    std::size_t m_committed_b;
 };
 
 } // namespace sax
