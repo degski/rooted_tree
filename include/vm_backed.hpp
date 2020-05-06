@@ -273,7 +273,7 @@ struct vm_concurrent_vector {
 
     vm_concurrent_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, m_committed_b{ 0u } {
+        m_end{ m_begin }, m_thread_end{ construct_thread_end ( ) }, m_committed_b{ 0u } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -417,7 +417,13 @@ struct vm_concurrent_vector {
         m_committed_b += alloc_page_size_b;
     }
 
+    [[nodiscard]] pointer & construct_thread_end ( ) noexcept {
+        static thread_local pointer t_end = nullptr;
+        return t_end;
+    }
+
     pointer m_begin, m_end;
+    pointer & m_thread_end;
     mutex m_mutex;
     std::size_t m_committed_b;
 };
