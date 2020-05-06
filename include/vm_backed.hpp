@@ -46,6 +46,7 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include <atomic>
 #include <algorithm>
 #include <initializer_list>
 #include <limits>
@@ -53,6 +54,7 @@
 #include <mutex>
 #include <new>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -132,7 +134,7 @@ struct vm_vector {
         return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
-    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) } );
+    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
 
     void pop_back ( ) noexcept {
         assert ( size ( ) );
@@ -250,8 +252,23 @@ struct srw_lock final {
 
 } // namespace detail
 
+namespace thread_id {
+// Creates a new ID.
+[[nodiscard]] inline int next ( ) noexcept {
+    static std::atomic<int> id = 0;
+    return id++;
+}
+// Returns ID of this thread.
+[[nodiscard]] inline int get ( ) noexcept {
+    static thread_local int tl_id = next ( );
+    return tl_id;
+}
+} // namespace thread_id
+
 template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
+
+    static constexpr std::size_t thread_reserve_size = 16;
 
     using value_type = detail::vm_epilog<ValueType>;
 
@@ -272,9 +289,15 @@ struct vm_concurrent_vector {
 
     using mutex = detail::srw_lock;
 
+    struct thread_data {
+        pointer begin = nullptr, end = nullptr;
+    };
+
+    using thread_data_array = std::vector<thread_data>;
+
     vm_concurrent_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, tl{ construct_thread_local_data ( ) }, m_committed_b{ 0u } {
+        m_end{ m_begin }, m_committed_b{ 0u } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -312,7 +335,7 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        constexpr std::size_t thread_reserve_size = 16;
+        thread_data & tl = m_thread_data[ thread_id::get ( ) ];
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_mutex );
@@ -328,7 +351,7 @@ struct vm_concurrent_vector {
         return *new ( tl.begin++ ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
-    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) } );
+    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
 
     void pop_back ( ) noexcept {
         {
@@ -423,19 +446,16 @@ struct vm_concurrent_vector {
         m_committed_b += alloc_page_size_b;
     }
 
-    struct thread_data {
-        pointer begin = nullptr, end = nullptr;
-    };
-
-    [[nodiscard]] thread_data & construct_thread_local_data ( ) noexcept {
-        static thread_local thread_data data;
-        return data;
-    }
+    static thread_data_array m_thread_data;
 
     pointer m_begin, m_end;
-    thread_data & tl;
     mutex m_mutex;
+
     std::size_t m_committed_b;
-}; // namespace sax
+};
+
+template<typename ValueType, std::size_t Capacity>
+typename vm_concurrent_vector<ValueType, Capacity>::thread_data_array
+    vm_concurrent_vector<ValueType, Capacity>::m_thread_data ( thread_reserve_size );
 
 } // namespace sax
