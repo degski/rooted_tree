@@ -300,7 +300,9 @@ struct vm_concurrent_vector {
     };
 
     using thread_data_deque              = detail::vm_vector::deque<thread_data>;
+    using thread_data_deque_vector       = std::vector<thread_data_deque>;
     using instance_thread_data_deque_map = std::map<vm_concurrent_vector *, thread_data_deque>;
+    using node_type_free_list            = std::vector<typename instance_thread_data_deque_map::node_type>;
 
     vm_concurrent_vector ( ) :
         m_thread_data_deque{ make_thread_data_deque ( ) }, m_begin{ reinterpret_cast<pointer> ( VirtualAlloc (
@@ -454,6 +456,7 @@ struct vm_concurrent_vector {
 
     static mutex s_instance_mutex, s_thread_mutex;
     static instance_thread_data_deque_map s_instance_map;
+    static node_type_free_list s_free_list;
 
     [[nodiscard]] thread_data_deque & make_thread_data_deque ( ) {
         std::pair this_thread_data_deque = { this, thread_data_deque{} };
@@ -462,10 +465,9 @@ struct vm_concurrent_vector {
     }
 
     void destruct_thread_data_deque ( ) noexcept {
-        typename instance_thread_data_deque_map::node_type node;
         {
             std::lock_guard lock ( s_instance_mutex );
-            node = s_instance_map.extract ( this );
+            s_instance_map.erase ( this );
         }
     }
 
@@ -496,5 +498,8 @@ typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<V
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::instance_thread_data_deque_map
     vm_concurrent_vector<ValueType, Capacity>::s_instance_map;
+
+template<typename ValueType, std::size_t Capacity>
+typename vm_concurrent_vector<ValueType, Capacity>::node_type_free_list vm_concurrent_vector<ValueType, Capacity>::s_free_list;
 
 } // namespace sax
