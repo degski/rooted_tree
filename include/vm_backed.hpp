@@ -40,6 +40,7 @@
 
 #    include <windef.h>
 #    include <WinBase.h>
+#    include <immintrin.h>
 
 #    ifdef WIN32_LEAN_AND_MEAN_DEFINED
 #        undef WIN32_LEAN_AND_MEAN_DEFINED
@@ -69,9 +70,25 @@
 #include <utility>
 #include <vector>
 
-#include <tbb/spin_mutex.h>
+#define VM_VECTOR_USE_TBB 1
+#define VM_VECTOR_USE_BOOST 1
+#define VM_VECTOR_USE_HEDLEY 1
 
-#include <hedley.hpp>
+#if VM_VECTOR_USE_TBB
+#    include <tbb/spin_mutex.h>
+#else
+
+#endif
+
+#if VM_VECTOR_USE_HEDLEY
+#    include <hedley.hpp>
+#else
+#    define HEDLEY_LIKELY( expr ) ( !!( expr ) )
+#    define HEDLEY_UNLIKELY( expr ) ( !!( expr ) )
+#    define HEDLEY_PREDICT( expr, res, perc ) ( !!( expr ) )
+#    define HEDLEY_NEVER_INLINE
+#    define HEDLEY_PURE
+#endif
 
 #if ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER )
 #    include <deque>
@@ -79,12 +96,37 @@
 #    include <boost/container/deque.hpp>
 #endif
 
+HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
+#if ( defined( __clang__ ) or defined( __GNUC__ ) )
+    asm( "pause" );
+#else
+    _mm_pause ( );
+#endif
+}
+
+struct tas_spin_lock final {
+
+    tas_spin_lock ( ) noexcept              = default;
+    tas_spin_lock ( tas_spin_lock const & ) = delete;
+    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
+        while ( flag.exchange ( 1, std::memory_order_acquire ) )
+            cpu_pause ( );
+    }
+
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
+
+    private:
+    std::atomic<char> flag = { 0 };
+};
+
 namespace sax {
 
 namespace detail ::vm_vector {
 
 template<typename T>
-#if ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER )
+#if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
 using deque = std::deque<T>;
 #else
 using deque = boost::container::deque<T>;
@@ -291,6 +333,12 @@ struct vm_epilog : public Data {
     vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
 };
 
+template<typename Data>
+struct vm_aligner : public Data {
+    template<typename... Args>
+    vm_aligner ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... } { };
+};
+
 struct srw_lock final {
 
     srw_lock ( ) noexcept             = default;
@@ -322,7 +370,7 @@ struct vm_concurrent_vector {
 
     static constexpr std::size_t thread_reserve_size = 16;
 
-    using value_type = detail::vm_vector::vm_epilog<ValueType>;
+    using value_type = detail::vm_vector::vm_epilog<detail::vm_vector::vm_aligner<ValueType>>;
 
     using pointer       = value_type *;
     using const_pointer = value_type const *;
@@ -339,7 +387,8 @@ struct vm_concurrent_vector {
     using reverse_iterator       = pointer;
     using const_reverse_iterator = const_pointer;
 
-    using mutex = detail::vm_vector::srw_lock;
+    // using mutex = detail::vm_vector::srw_lock;
+    using mutex = tas_spin_lock;
 
     using vm = vm<pointer>;
 
@@ -490,7 +539,8 @@ struct vm_concurrent_vector {
         return static_cast<std::size_t> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
-    static mutex s_instance_mutex, s_thread_mutex;
+    alignas ( 8 ) static mutex s_instance_mutex;
+    alignas ( 8 ) static mutex s_thread_mutex;
     static instance_data_map s_instance;
     static thread_data_deque_vector s_freelist;
 
@@ -533,13 +583,13 @@ struct vm_concurrent_vector {
     thread_data_deque & m_thread_data_deque;
     vm m_vm;
     pointer m_begin, m_end;
-    mutex m_end_mutex;
+    alignas ( 8 ) mutex m_end_mutex;
 };
 
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_instance_mutex;
+alignas ( 8 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_instance_mutex;
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
+alignas ( 8 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
 template<typename ValueType, std::size_t Capacity>
