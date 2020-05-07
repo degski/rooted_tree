@@ -105,7 +105,7 @@ struct vm_vector {
 
     vm_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, m_committed_b{ 0u } {
+        m_end{ m_begin }, m_committed_b{ 0 } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -132,7 +132,7 @@ struct vm_vector {
         if ( HEDLEY_LIKELY ( m_begin ) ) {
             VirtualFree ( m_begin, capacity_b ( ), MEM_RELEASE );
             m_end = m_begin = nullptr;
-            m_committed_b   = 0u;
+            m_committed_b   = 0;
         }
     }
 
@@ -316,16 +316,16 @@ struct vm_concurrent_vector {
         m_committed_b += size_;
     }
 
-    void vm_free ( std::size_t size_ ) noexcept {
-        VirtualFree ( m_begin, size_, MEM_RELEASE );
-        m_committed_b = 0u;
+    void vm_free ( ) noexcept {
+        VirtualFree ( m_begin, 0, MEM_RELEASE );
+        m_committed_b = 0;
     }
 
     // Constructors.
 
     vm_concurrent_vector ( ) :
         m_thread_data_deque{ make_thread_data_deque ( ) }, m_begin{ vm_reserve ( capacity_b ( ) ) }, m_end{ m_begin },
-        m_committed_b{ 0u } {
+        m_committed_b{ 0 } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -348,7 +348,7 @@ struct vm_concurrent_vector {
             for ( value_type & v : *this )
                 v.~value_type ( );
         if ( HEDLEY_LIKELY ( m_begin ) ) {
-            vm_free ( capacity_b ( ) );
+            vm_free ( );
             m_end = m_begin = nullptr;
         }
     }
