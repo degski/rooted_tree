@@ -32,7 +32,6 @@
 #    ifndef _AMD64_
 #        define _AMD64_
 #    endif
-#
 
 #    ifndef WIN32_LEAN_AND_MEAN
 #        define WIN32_LEAN_AND_MEAN_DEFINED
@@ -50,10 +49,6 @@
 #else
 #    include <sys/mman.h>
 #endif
-
-#include <mio/mmap.hpp>
-
-using namespace mio;
 
 #include <cassert>
 #include <cstddef>
@@ -97,6 +92,41 @@ using deque = boost::container::deque<T>;
 
 } // namespace detail::vm_vector
 
+template<typename Pointer>
+struct vm {
+
+    [[nodiscard]] Pointer reserve ( std::size_t size_ ) {
+#if defined( _MSC_VER )
+        return reinterpret_cast<Pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
+#else
+        return reinterpret_cast<Pointer> ( mmap ( nullptr, size_, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 ) );
+#endif
+    }
+
+    HEDLEY_NEVER_INLINE void allocate ( void * pointer_, std::size_t size_ ) {
+#if defined( _MSC_VER )
+        if ( HEDLEY_UNLIKELY (
+                 not VirtualAlloc ( reinterpret_cast<char *> ( pointer_ ) + commited_b, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
+            throw std::bad_alloc ( );
+#else
+        mmap ( reinterpret_cast<char *> ( pointer_ ) + commited_b, size_, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1,
+               0 );
+#endif
+        commited_b += size_;
+    }
+
+    void free ( void * pointer_, std::size_t size_ ) noexcept {
+#if defined( _MSC_VER )
+        VirtualFree ( pointer_, 0, MEM_RELEASE );
+#else
+        munmap ( pointer_, size_ );
+#endif
+        commited_b = 0;
+    }
+
+    std::size_t commited_b = 0;
+};
+
 template<typename ValueType, std::size_t Capacity>
 struct vm_vector {
 
@@ -119,7 +149,7 @@ struct vm_vector {
 
     vm_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, m_committed_b{ 0 } {
+        m_end{ m_begin }, commited_b{ 0 } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -133,7 +163,7 @@ struct vm_vector {
         size_type rc = required_b ( s_ );
         if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, rc, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
-        m_committed_b = rc;
+        commited_b = rc;
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
@@ -146,7 +176,7 @@ struct vm_vector {
         if ( HEDLEY_LIKELY ( m_begin ) ) {
             VirtualFree ( m_begin, capacity_b ( ), MEM_RELEASE );
             m_end = m_begin = nullptr;
-            m_committed_b   = 0;
+            commited_b      = 0;
         }
     }
 
@@ -158,11 +188,11 @@ struct vm_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        if ( HEDLEY_UNLIKELY ( size_b ( ) == m_committed_b ) ) {
-            size_type cib = std::min ( m_committed_b ? grow ( m_committed_b ) : alloc_page_size_b, capacity_b ( ) );
-            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - m_committed_b, MEM_COMMIT, PAGE_READWRITE ) ) )
+        if ( HEDLEY_UNLIKELY ( size_b ( ) == commited_b ) ) {
+            size_type cib = std::min ( commited_b ? grow ( commited_b ) : alloc_page_size_b, capacity_b ( ) );
+            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - commited_b, MEM_COMMIT, PAGE_READWRITE ) ) )
                 throw std::bad_alloc ( );
-            m_committed_b = cib;
+            commited_b = cib;
         }
         return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
     }
@@ -248,7 +278,7 @@ struct vm_vector {
     [[nodiscard]] HEDLEY_PURE size_type shrink ( size_type const & cap_b_ ) const noexcept { return cap_b_ - alloc_page_size_b; }
 
     pointer m_begin, m_end;
-    size_type m_committed_b;
+    size_type commited_b;
 };
 
 namespace detail ::vm_vector {
@@ -311,6 +341,8 @@ struct vm_concurrent_vector {
 
     using mutex = detail::vm_vector::srw_lock;
 
+    using vm = vm<pointer>;
+
     struct thread_data {
         pointer begin = nullptr, end = nullptr;
     };
@@ -320,54 +352,20 @@ struct vm_concurrent_vector {
     using instance_data_map         = std::map<vm_concurrent_vector *, thread_data_deque>;
     using instance_data_map_kv_pair = typename instance_data_map::value_type;
 
-    // Virtual memory.
-
-    [[nodiscard]] pointer vm_reserve ( std::size_t size_ ) {
-        if constexpr ( is_windows::value )
-            return reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
-        else
-            //  return reinterpret_cast<pointer> ( mmap ( nullptr, size_, PROT_NONE /* PROT_READ | PROT_WRITE | PROT_EXEC */,
-            //                                            MAP_ANONYMOUS | MAP_PRIVATE, // to a private block of hardware memory
-            //                                           0, 0 ) );
-            ;
-    }
-
-    HEDLEY_NEVER_INLINE void vm_allocate ( std::size_t size_ ) {
-        if constexpr ( is_windows::value ) {
-            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_begin + m_committed_b, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
-                throw std::bad_alloc ( );
-        }
-        else {
-            ;
-        }
-        m_committed_b += size_;
-    }
-
-    void vm_free ( ) noexcept {
-        if constexpr ( is_windows::value )
-            VirtualFree ( m_begin, 0, MEM_RELEASE );
-        else
-            ; // munmap ( m_begin, 0 );
-        m_committed_b = 0;
-    }
-
-    // Constructors.
-
     vm_concurrent_vector ( ) :
-        m_thread_data_deque{ make_thread_data_deque ( ) }, m_begin{ vm_reserve ( capacity_b ( ) ) }, m_end{ m_begin },
-        m_committed_b{ 0 } {
+        m_thread_data_deque{ make_thread_data_deque ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{ m_begin } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
 
     vm_concurrent_vector ( std::initializer_list<ValueType> il_ ) : vm_concurrent_vector{ } {
-        vm_allocate ( alloc_page_size_b );
+        m_vm.allocate ( m_begin, alloc_page_size_b );
         for ( ValueType & v : il_ )
             *m_end++ = value_type{ v };
     }
 
     explicit vm_concurrent_vector ( size_type s_, value_type const & v_ = value_type{ } ) : vm_concurrent_vector{ } {
-        vm_allocate ( round_up_to_alloc_page_size_b ( s_ * sizeof ( value_type ) ) );
+        m_vm.allocate ( m_begin, round_up_to_alloc_page_size_b ( s_ * sizeof ( value_type ) ) );
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
@@ -378,7 +376,7 @@ struct vm_concurrent_vector {
             for ( value_type & v : *this )
                 v.~value_type ( );
         if ( HEDLEY_LIKELY ( m_begin ) ) {
-            vm_free ( );
+            m_vm.free ( m_begin, capacity_b ( ) );
             m_end = m_begin = nullptr;
         }
     }
@@ -395,10 +393,10 @@ struct vm_concurrent_vector {
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_end_mutex );
-                if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_committed_b, false,
+                if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_vm.commited_b, false,
                                       1.0 - static_cast<double> ( sizeof ( value_type ) ) /
                                                 static_cast<double> ( alloc_page_size_b ) ) )
-                    vm_allocate ( alloc_page_size_b );
+                    m_vm.allocate ( m_begin, alloc_page_size_b );
                 tl.begin = m_end;
                 m_end += thread_reserve_size;
             }
@@ -533,9 +531,8 @@ struct vm_concurrent_vector {
     }
 
     thread_data_deque & m_thread_data_deque;
-
+    vm m_vm;
     pointer m_begin, m_end;
-    std::size_t m_committed_b;
     mutex m_end_mutex;
 };
 
