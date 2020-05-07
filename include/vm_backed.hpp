@@ -459,8 +459,9 @@ struct vm_concurrent_vector {
     static instance_thread_data_deque_map s_instance_map;
 
     [[nodiscard]] thread_data_deque & make_thread_data_deque ( ) {
+        std::pair this_thread_data_deque = { this, thread_data_deque{} };
         std::lock_guard lock ( s_instance_mutex );
-        return s_instance_map.emplace ( this, thread_data_deque{ } ).first->second;
+        return s_instance_map.insert ( std::move ( this_thread_data_deque ) ).first->second;
     }
     void destroy_thread_data_deque ( ) noexcept {
         thread_data_deque tdd;
@@ -475,7 +476,7 @@ struct vm_concurrent_vector {
         return m_thread_data_deque.emplace_back ( );
     }
 
-    [[nodiscard]] thread_data & get_thread_data ( ) const noexcept {
+    [[nodiscard]] thread_data & get_thread_data ( ) const {
         static thread_local thread_data & data = make_thread_data ( );
         return data;
     }
