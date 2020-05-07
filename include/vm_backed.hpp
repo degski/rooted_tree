@@ -28,18 +28,32 @@
 #    ifndef NOMINMAX
 #        define NOMINMAX
 #    endif
+
 #    ifndef _AMD64_
-#        define _AMD64_ // srw_lock
+#        define _AMD64_
 #    endif
+#
+
+#    ifndef WIN32_LEAN_AND_MEAN
+#        define WIN32_LEAN_AND_MEAN_DEFINED
+#        define WIN32_LEAN_AND_MEAN
+#    endif
+
 #    include <windef.h>
 #    include <WinBase.h>
-#    include <Memoryapi.h>
+
+#    ifdef WIN32_LEAN_AND_MEAN_DEFINED
+#        undef WIN32_LEAN_AND_MEAN_DEFINED
+#        undef WIN32_LEAN_AND_MEAN
+#    endif
 
 #else
-
 #    include <sys/mman.h>
-
 #endif
+
+#include <mio/mmap.hpp>
+
+using namespace mio;
 
 #include <cassert>
 #include <cstddef>
@@ -54,11 +68,11 @@
 #include <memory>
 #include <mutex>
 #include <new>
-#include <set>
 #include <stdexcept>
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <tbb/spin_mutex.h>
 
@@ -312,6 +326,9 @@ struct vm_concurrent_vector {
         if constexpr ( is_windows::value )
             return reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
         else
+            //  return reinterpret_cast<pointer> ( mmap ( nullptr, size_, PROT_NONE /* PROT_READ | PROT_WRITE | PROT_EXEC */,
+            //                                            MAP_ANONYMOUS | MAP_PRIVATE, // to a private block of hardware memory
+            //                                           0, 0 ) );
             ;
     }
 
@@ -330,7 +347,7 @@ struct vm_concurrent_vector {
         if constexpr ( is_windows::value )
             VirtualFree ( m_begin, 0, MEM_RELEASE );
         else
-            ;
+            ; // munmap ( m_begin, 0 );
         m_committed_b = 0;
     }
 
@@ -524,13 +541,10 @@ struct vm_concurrent_vector {
 
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_instance_mutex;
-
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
-
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
-
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::thread_data_deque_vector vm_concurrent_vector<ValueType, Capacity>::s_freelist;
 

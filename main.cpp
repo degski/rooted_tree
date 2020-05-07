@@ -21,6 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "vm_backed.hpp"
 #include "rooted_tree.hpp"
 
 #include <cassert>
@@ -38,7 +39,6 @@
 #include <sax/iostream.hpp>
 #include <sax/prng_sfc.hpp>
 #include <sax/uniform_int_distribution.hpp>
-#include "vm_backed.hpp"
 
 #if defined( _DEBUG )
 #    define RANDOM 0
