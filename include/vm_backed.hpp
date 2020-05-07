@@ -96,31 +96,6 @@
 #    include <boost/container/deque.hpp>
 #endif
 
-HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
-#if ( defined( __clang__ ) or defined( __GNUC__ ) )
-    asm( "pause" );
-#else
-    _mm_pause ( );
-#endif
-}
-
-struct tas_spin_lock final {
-
-    tas_spin_lock ( ) noexcept              = default;
-    tas_spin_lock ( tas_spin_lock const & ) = delete;
-    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
-
-    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
-        while ( flag.exchange ( 1, std::memory_order_acquire ) )
-            cpu_pause ( );
-    }
-
-    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
-
-    private:
-    std::atomic<char> flag = { 0 };
-};
-
 namespace sax {
 
 namespace detail ::vm_vector {
@@ -133,6 +108,35 @@ using deque = boost::container::deque<T>;
 #endif
 
 } // namespace detail::vm_vector
+
+namespace detail {
+
+HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
+#if ( defined( __clang__ ) or defined( __GNUC__ ) )
+    asm( "pause" );
+#else
+    _mm_pause ( );
+#endif
+}
+
+} // namespace detail
+
+struct tas_spin_lock final {
+
+    tas_spin_lock ( ) noexcept              = default;
+    tas_spin_lock ( tas_spin_lock const & ) = delete;
+    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
+        while ( flag.exchange ( 1, std::memory_order_acquire ) )
+            detail::cpu_pause ( );
+    }
+
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
+
+    private:
+    std::atomic<char> flag = { 0 };
+};
 
 template<typename Pointer>
 struct vm {
@@ -328,6 +332,7 @@ namespace detail ::vm_vector {
 template<typename Data>
 struct vm_epilog : public Data {
     tbb::spin_mutex lock;
+    // tas_spin_lock lock;
     tbb::atomic<char const> atom;
     template<typename... Args>
     vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
@@ -539,8 +544,8 @@ struct vm_concurrent_vector {
         return static_cast<std::size_t> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
-    alignas ( 8 ) static mutex s_instance_mutex;
-    alignas ( 8 ) static mutex s_thread_mutex;
+    alignas ( 64 ) static mutex s_instance_mutex;
+    alignas ( 64 ) static mutex s_thread_mutex;
     static instance_data_map s_instance;
     static thread_data_deque_vector s_freelist;
 
@@ -583,13 +588,14 @@ struct vm_concurrent_vector {
     thread_data_deque & m_thread_data_deque;
     vm m_vm;
     pointer m_begin, m_end;
-    alignas ( 8 ) mutex m_end_mutex;
+    alignas ( 64 ) mutex m_end_mutex;
 };
 
 template<typename ValueType, std::size_t Capacity>
-alignas ( 8 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_instance_mutex;
+alignas ( 64 )
+    typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_instance_mutex;
 template<typename ValueType, std::size_t Capacity>
-alignas ( 8 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
+alignas ( 64 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
 template<typename ValueType, std::size_t Capacity>
