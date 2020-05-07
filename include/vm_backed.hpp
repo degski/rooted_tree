@@ -470,14 +470,14 @@ struct vm_concurrent_vector {
         }
     }
 
-    [[nodiscard]] thread_data * make_thread_data ( ) const {
+    [[nodiscard]] thread_data & make_thread_data ( ) const {
         std::lock_guard lock ( s_thread_mutex );
-        return std::addressof ( m_thread_data_deque.emplace_back ( ) );
+        return m_thread_data_deque.emplace_back ( );
     }
 
     [[nodiscard]] thread_data & get_thread_data ( ) const noexcept {
-        static thread_local thread_data * data = make_thread_data ( );
-        return *data;
+        static thread_local thread_data & data = make_thread_data ( );
+        return data;
     }
 
     thread_data_deque & m_thread_data_deque;
