@@ -274,6 +274,8 @@ struct srw_lock final {
 template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
 
+    using is_windows = std::integral_constant<bool, static_cast<bool> ( _MSC_VER )>;
+
     static constexpr std::size_t thread_reserve_size = 16;
 
     using value_type = detail::vm_vector::vm_epilog<ValueType>;
@@ -307,17 +309,28 @@ struct vm_concurrent_vector {
     // Virtual memory.
 
     [[nodiscard]] pointer vm_reserve ( std::size_t size_ ) {
-        return reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
+        if constexpr ( is_windows::value )
+            return reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
+        else
+            ;
     }
 
     HEDLEY_NEVER_INLINE void vm_allocate ( std::size_t size_ ) {
-        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_begin + m_committed_b, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
-            throw std::bad_alloc ( );
+        if constexpr ( is_windows::value ) {
+            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_begin + m_committed_b, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
+                throw std::bad_alloc ( );
+        }
+        else {
+            ;
+        }
         m_committed_b += size_;
     }
 
     void vm_free ( ) noexcept {
-        VirtualFree ( m_begin, 0, MEM_RELEASE );
+        if constexpr ( is_windows::value )
+            VirtualFree ( m_begin, 0, MEM_RELEASE );
+        else
+            ;
         m_committed_b = 0;
     }
 
