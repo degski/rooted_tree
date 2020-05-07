@@ -310,13 +310,14 @@ struct vm_concurrent_vector {
             throw std::bad_alloc ( );
     };
 
-    vm_concurrent_vector ( std::initializer_list<value_type> il_ ) : vm_concurrent_vector{ } { // no!!
-        for ( value_type const & v : il_ )
-            push_back ( v );
+    vm_concurrent_vector ( std::initializer_list<ValueType> il_ ) : vm_concurrent_vector{ } {
+        allocate_page ( );
+        for ( ValueType & v : il_ )
+            *m_end++ = value_type{ v };
     }
 
-    explicit vm_concurrent_vector ( size_type s_, value_type const & v_ ) : vm_concurrent_vector{ } {
-        auto required_b = round_up_to_os_vm_page_size_b ( s_ * sizeof ( value_type ) );
+    explicit vm_concurrent_vector ( size_type s_, value_type const & v_ = value_type{ } ) : vm_concurrent_vector{ } {
+        std::size_t required_b = round_up_to_alloc_page_size_b ( s_ * sizeof ( value_type ) );
         if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, required_b, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
         m_committed_b = required_b;
@@ -325,7 +326,7 @@ struct vm_concurrent_vector {
     }
 
     ~vm_concurrent_vector ( ) {
-        destroy_thread_data_deque ( );
+        destruct_thread_data_deque ( );
         if constexpr ( not std::is_trivial<value_type>::value )
             for ( value_type & v : *this )
                 v.~value_type ( );
@@ -432,12 +433,8 @@ struct vm_concurrent_vector {
     void await_construction ( size_type element_ ) const noexcept { await_construction ( data ( ) + element_ ); }
 
     // private:
-    static constexpr std::size_t os_vm_page_size_b = static_cast<std::size_t> ( 65'536 );         // 64KB on windows.
     static constexpr std::size_t alloc_page_size_b = static_cast<std::size_t> ( 1'024 * 65'536 ); // 64MB
 
-    [[nodiscard]] constexpr std::size_t round_up_to_os_vm_page_size_b ( std::size_t n_ ) const noexcept {
-        return ( ( n_ + os_vm_page_size_b - 1 ) / os_vm_page_size_b ) * os_vm_page_size_b;
-    }
     [[nodiscard]] constexpr std::size_t round_up_to_alloc_page_size_b ( std::size_t n_ ) const noexcept {
         return ( ( n_ + alloc_page_size_b - 1 ) / alloc_page_size_b ) * alloc_page_size_b;
     }
@@ -463,11 +460,12 @@ struct vm_concurrent_vector {
         std::lock_guard lock ( s_instance_mutex );
         return s_instance_map.insert ( std::move ( this_thread_data_deque ) ).first->second;
     }
-    void destroy_thread_data_deque ( ) noexcept {
-        thread_data_deque tdd;
+
+    void destruct_thread_data_deque ( ) noexcept {
+        typename instance_thread_data_deque_map::node_type node;
         {
             std::lock_guard lock ( s_instance_mutex );
-            std::swap ( tdd, s_instance_map[ this ] );
+            node = s_instance_map.extract ( this );
         }
     }
 
