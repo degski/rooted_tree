@@ -72,12 +72,16 @@
 
 namespace sax {
 
+namespace detail ::vm_vector {
+
 template<typename T>
 #if ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER )
 using deque = std::deque<T>;
 #else
 using deque = boost::container::deque<T>;
 #endif
+
+} // namespace detail::vm_vector
 
 template<typename ValueType, std::size_t Capacity>
 struct vm_vector {
@@ -233,7 +237,7 @@ struct vm_vector {
     size_type m_committed_b;
 };
 
-namespace detail {
+namespace detail ::vm_vector {
 
 template<typename Data>
 struct vm_epilog : public Data {
@@ -265,14 +269,14 @@ struct srw_lock final {
     mutable SRWLOCK m_handle = SRWLOCK_INIT;
 };
 
-} // namespace detail
+} // namespace detail::vm_vector
 
 template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
 
     static constexpr std::size_t thread_reserve_size = 16;
 
-    using value_type = detail::vm_epilog<ValueType>;
+    using value_type = detail::vm_vector::vm_epilog<ValueType>;
 
     using pointer       = value_type *;
     using const_pointer = value_type const *;
@@ -289,13 +293,13 @@ struct vm_concurrent_vector {
     using reverse_iterator       = pointer;
     using const_reverse_iterator = const_pointer;
 
-    using mutex = detail::srw_lock;
+    using mutex = detail::vm_vector::srw_lock;
 
     struct thread_data {
         pointer begin = nullptr, end = nullptr;
     };
 
-    using thread_data_deque              = deque<thread_data>;
+    using thread_data_deque              = detail::vm_vector::deque<thread_data>;
     using instance_thread_data_deque_map = std::map<vm_concurrent_vector *, thread_data_deque>;
 
     vm_concurrent_vector ( ) :
