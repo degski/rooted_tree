@@ -299,10 +299,10 @@ struct vm_concurrent_vector {
         pointer begin = nullptr, end = nullptr;
     };
 
-    using thread_data_deque              = detail::vm_vector::deque<thread_data>;
-    using thread_data_deque_vector       = std::vector<thread_data_deque>;
-    using instance_thread_data_deque_map = std::map<vm_concurrent_vector *, thread_data_deque>;
-    using node_type_free_list            = std::vector<typename instance_thread_data_deque_map::node_type>;
+    using thread_data_deque         = detail::vm_vector::deque<thread_data>;
+    using thread_data_deque_vector  = std::vector<thread_data_deque>;
+    using instance_data_map         = std::map<vm_concurrent_vector *, thread_data_deque>;
+    using instance_data_map_kv_pair = typename instance_data_map::value_type;
 
     vm_concurrent_vector ( ) :
         m_thread_data_deque{ make_thread_data_deque ( ) }, m_begin{ reinterpret_cast<pointer> ( VirtualAlloc (
@@ -350,7 +350,7 @@ struct vm_concurrent_vector {
         thread_data & tl = get_thread_data ( );
         if ( tl.begin == tl.end ) {
             {
-                std::lock_guard lock ( m_mutex );
+                std::lock_guard lock ( m_end_mutex );
                 if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_committed_b, false,
                                       1.0 - static_cast<double> ( sizeof ( value_type ) ) /
                                                 static_cast<double> ( alloc_page_size_b ) ) )
@@ -367,7 +367,7 @@ struct vm_concurrent_vector {
 
     void pop_back ( ) noexcept {
         {
-            std::lock_guard lock ( m_mutex );
+            std::lock_guard lock ( m_end_mutex );
             assert ( size ( ) );
             m_end--;
         }
@@ -455,20 +455,21 @@ struct vm_concurrent_vector {
     }
 
     static mutex s_instance_mutex, s_thread_mutex;
-    static instance_thread_data_deque_map s_instance_map;
-    static node_type_free_list s_free_list;
+    static instance_data_map s_instance;
+    static thread_data_deque_vector s_freelist;
 
     [[nodiscard]] thread_data_deque & make_thread_data_deque ( ) {
         std::pair this_thread_data_deque = { this, thread_data_deque{} };
         std::lock_guard lock ( s_instance_mutex );
-        return s_instance_map.insert ( std::move ( this_thread_data_deque ) ).first->second;
+        return insert_instance_this_deque ( std::move ( this_thread_data_deque ) );
     }
 
     void destruct_thread_data_deque ( ) noexcept {
-        {
-            std::lock_guard lock ( s_instance_mutex );
-            s_instance_map.erase ( this );
-        }
+        std::lock_guard lock ( s_instance_mutex );
+        s_freelist.emplace_back ( );
+        auto it = s_instance.find ( this );
+        std::swap ( s_freelist.back ( ), it->second );
+        s_instance.erase ( it );
     }
 
     [[nodiscard]] thread_data & make_thread_data ( ) const {
@@ -481,12 +482,23 @@ struct vm_concurrent_vector {
         return data;
     }
 
+    [[nodiscard]] HEDLEY_NEVER_INLINE thread_data_deque &
+    insert_instance_this_deque ( instance_data_map_kv_pair && this_thread_data_deque_ ) {
+        if ( s_freelist.size ( ) ) {
+            thread_data_deque & tdd = s_instance.insert ( { this, std::move ( s_freelist.back ( ) ) } ).first->second;
+            s_freelist.pop_back ( );
+            return tdd;
+        }
+        else {
+            return s_instance.insert ( std::move ( this_thread_data_deque_ ) ).first->second;
+        }
+    }
+
     thread_data_deque & m_thread_data_deque;
 
     pointer m_begin, m_end;
-    mutex m_mutex;
-
     std::size_t m_committed_b;
+    mutex m_end_mutex;
 };
 
 template<typename ValueType, std::size_t Capacity>
@@ -496,10 +508,9 @@ template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
 
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::instance_thread_data_deque_map
-    vm_concurrent_vector<ValueType, Capacity>::s_instance_map;
+typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
 
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::node_type_free_list vm_concurrent_vector<ValueType, Capacity>::s_free_list;
+typename vm_concurrent_vector<ValueType, Capacity>::thread_data_deque_vector vm_concurrent_vector<ValueType, Capacity>::s_freelist;
 
 } // namespace sax
