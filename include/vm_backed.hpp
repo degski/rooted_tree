@@ -190,16 +190,16 @@ struct tas_spin_lock final {
     std::atomic<char> flag = { 0 };
 };
 
-template<typename Data>
-struct vm_epilog : public Data {
+template<typename AlignedData>
+struct vm_epilog : public AlignedData {
     tas_spin_lock lock;
     std::atomic<char> atom;
     template<typename... Args>
-    vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
+    vm_epilog ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
 };
 
 template<typename Data>
-struct vm_aligner : public Data {
+struct /* alignas ( 16 ) */ vm_aligner : public Data {
     template<typename... Args>
     vm_aligner ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... } { };
 };
