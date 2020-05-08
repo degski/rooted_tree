@@ -210,7 +210,7 @@ struct vm_aligner : public Data {
 template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
 
-    using is_windows = std::integral_constant<bool, static_cast<bool> ( _MSC_VER )>;
+    using is_windows = std::integral_constant<bool, static_cast<bool> ( _MSC_VER )>; // ?
 
     static constexpr std::size_t thread_reserve_size = 16;
 
@@ -236,17 +236,19 @@ struct vm_concurrent_vector {
 
     using vm = detail::vm_vector::vm<pointer>;
 
-    struct thread_data {
+    struct thread_local_data {
         pointer begin = nullptr, end = nullptr;
     };
 
-    using thread_data_colony        = plf::colony<thread_data>;
-    using thread_data_colony_vector = std::vector<thread_data_colony>;
-    using instance_data_map         = std::map<vm_concurrent_vector *, thread_data_colony>;
-    using instance_data_map_kv_pair = typename instance_data_map::value_type;
+    using thread_local_data_colony        = plf::colony<thread_local_data>;
+    using thread_local_data_colony_vector = std::vector<thread_local_data_colony>;
+    using thread_local_data_map           = std::map<vm_concurrent_vector * const, thread_local_data_colony>;
+    using thread_local_data_map_kv_pair   = typename thread_local_data_map::value_type;
 
     vm_concurrent_vector ( ) :
-        m_thread_data_colony{ make_thread_data_colony ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{ m_begin } {
+        m_thread_local_data_colony{ make_thread_local_data_colony ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{
+            m_begin
+        } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -264,7 +266,7 @@ struct vm_concurrent_vector {
     }
 
     ~vm_concurrent_vector ( ) {
-        destruct_thread_data_colony ( );
+        recycle_thread_local_data_colony ( );
         if constexpr ( not std::is_trivial<value_type>::value )
             for ( value_type & v : *this )
                 v.~value_type ( );
@@ -282,7 +284,7 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        thread_data & tl = get_thread_data ( );
+        thread_local_data & tl = get_thread_local_data ( );
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_end_mutex );
@@ -383,48 +385,49 @@ struct vm_concurrent_vector {
         return static_cast<std::size_t> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
     }
 
-    alignas ( 64 ) static mutex s_instance_mutex;
+    alignas ( 64 ) static mutex s_this_map_mutex;
     alignas ( 64 ) static mutex s_thread_mutex;
-    static instance_data_map s_instance;
-    static thread_data_colony_vector s_freelist;
 
-    [[nodiscard]] thread_data_colony & make_thread_data_colony ( ) {
-        std::pair this_thread_data_colony = { this, thread_data_colony{} };
-        std::lock_guard lock ( s_instance_mutex );
-        return insert_instance_this_colony ( std::move ( this_thread_data_colony ) );
+    static thread_local_data_map s_this_map;
+    static thread_local_data_colony_vector s_freelist;
+
+    [[nodiscard]] thread_local_data_colony & make_thread_local_data_colony ( ) {
+        std::pair this_thread_local_data_colony = { this, thread_local_data_colony{} };
+        std::lock_guard lock ( s_this_map_mutex );
+        return insert_this ( std::move ( this_thread_local_data_colony ) );
     }
 
-    void destruct_thread_data_colony ( ) noexcept {
-        std::lock_guard lock ( s_instance_mutex );
+    void recycle_thread_local_data_colony ( ) noexcept {
+        std::lock_guard lock ( s_this_map_mutex );
         s_freelist.emplace_back ( );
-        auto it = s_instance.find ( this );
+        auto it = s_this_map.find ( this );
         std::swap ( s_freelist.back ( ), it->second );
-        s_instance.erase ( it );
+        s_this_map.erase ( it );
     }
 
-    [[nodiscard]] thread_data & make_thread_data ( ) const {
+    [[nodiscard]] thread_local_data & make_thread_local_data ( ) const {
         std::lock_guard lock ( s_thread_mutex );
-        return *m_thread_data_colony.emplace ( );
+        return *m_thread_local_data_colony.emplace ( );
     }
 
-    [[nodiscard]] thread_data & get_thread_data ( ) const {
-        static thread_local thread_data & data = make_thread_data ( );
-        return data;
+    [[nodiscard]] thread_local_data & get_thread_local_data ( ) const {
+        static thread_local thread_local_data & this_object_thread_local_data = make_thread_local_data ( );
+        return this_object_thread_local_data;
     }
 
-    [[nodiscard]] HEDLEY_NEVER_INLINE thread_data_colony &
-    insert_instance_this_colony ( instance_data_map_kv_pair && this_thread_data_colony_ ) {
+    [[nodiscard]] HEDLEY_NEVER_INLINE thread_local_data_colony &
+    insert_this ( thread_local_data_map_kv_pair && this_thread_local_data_ ) {
         if ( s_freelist.size ( ) ) {
-            thread_data_colony & tdd = s_instance.insert ( { this, std::move ( s_freelist.back ( ) ) } ).first->second;
+            thread_local_data_colony & tdd = s_this_map.insert ( { this, std::move ( s_freelist.back ( ) ) } ).first->second;
             s_freelist.pop_back ( );
             return tdd;
         }
         else {
-            return s_instance.insert ( std::move ( this_thread_data_colony_ ) ).first->second;
+            return s_this_map.insert ( std::move ( this_thread_local_data_ ) ).first->second;
         }
     }
 
-    thread_data_colony & m_thread_data_colony;
+    thread_local_data_colony & m_thread_local_data_colony;
     vm m_vm;
     pointer m_begin, m_end;
     alignas ( 64 ) mutex m_end_mutex;
@@ -432,13 +435,14 @@ struct vm_concurrent_vector {
 
 template<typename ValueType, std::size_t Capacity>
 alignas ( 64 )
-    typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_instance_mutex;
+    typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_this_map_mutex;
 template<typename ValueType, std::size_t Capacity>
 alignas ( 64 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_concurrent_vector<ValueType, Capacity>::s_thread_mutex;
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
+typename vm_concurrent_vector<ValueType, Capacity>::thread_local_data_map vm_concurrent_vector<ValueType, Capacity>::s_this_map;
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::thread_data_colony_vector vm_concurrent_vector<ValueType, Capacity>::s_freelist;
+typename vm_concurrent_vector<ValueType, Capacity>::thread_local_data_colony_vector
+    vm_concurrent_vector<ValueType, Capacity>::s_freelist;
 
 template<typename ValueType, std::size_t Capacity>
 struct vm_vector {
