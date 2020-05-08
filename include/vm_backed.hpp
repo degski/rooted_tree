@@ -103,11 +103,6 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
     return ( ( n_ + multiple_ - 1 ) / multiple_ ) * multiple_;
 }
 
-template<typename T>
-[[nodiscard]] inline constexpr T * round_multiple ( T * pointer_, std::size_t multiple_ ) noexcept {
-    return reinterpret_cast<T *> ( round_multiple ( reinterpret_cast<std::size_t> ( pointer_ ), multiple_ ) );
-}
-
 namespace vm_vector { // sax::detail::vm_vector
 
 template<typename Pointer>
@@ -222,7 +217,7 @@ struct vm_concurrent_vector {
 
     using is_windows = std::integral_constant<bool, static_cast<bool> ( _MSC_VER )>; // ?
 
-    static constexpr std::size_t thread_reserve_size = 16;
+    static constexpr std::size_t thread_reserve_size = 32;
 
     using value_type = detail::vm_vector::vm_epilog<detail::vm_vector::vm_aligner<ValueType>>;
 
@@ -247,7 +242,7 @@ struct vm_concurrent_vector {
     using vm = detail::vm_vector::vm<pointer>;
 
     struct thread_local_data {
-        pointer begin = nullptr, end = nullptr;
+        pointer begin = nullptr;
     };
 
     using thread_local_data_colony        = plf::colony<thread_local_data>;
@@ -292,21 +287,27 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
+
+        constexpr std::size_t thread_reserve_size_b = thread_reserve_size * sizeof ( value_type );
+
+        auto next_end = [ = ] ( pointer p ) {
+            return reinterpret_cast<pointer> (
+                ( ( reinterpret_cast<std::size_t> ( p ) + thread_reserve_size_b ) / thread_reserve_size_b ) *
+                thread_reserve_size_b );
+        };
+
         thread_local_data & tld = get_thread_local_data ( );
-        if ( tld.begin == tld.end ) {
-            {
-                std::lock_guard lock ( m_end_mutex );
-                if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_vm.committed, false,
-                                      1.0 - static_cast<double> ( sizeof ( value_type ) ) /
-                                                static_cast<double> ( alloc_page_size_b ) ) )
-                    grow_allocated_by ( alloc_page_size_b );
-                tld.begin = m_end;
-                m_end += thread_reserve_size;
-            }
-            tld.end = tld.begin + thread_reserve_size;
+        if ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) & ( thread_reserve_size_b - 1 ) ) ) {
+            std::lock_guard lock ( m_end_mutex );
+            m_end = next_end ( ( tld.begin = m_end ) );
+            if ( HEDLEY_PREDICT ( m_end >= m_begin + m_vm.committed, false,
+                                  1.0 -
+                                      static_cast<double> ( sizeof ( value_type ) ) / static_cast<double> ( alloc_page_size_b ) ) )
+                grow_allocated_by ( alloc_page_size_b );
         }
         return *new ( tld.begin++ ) value_type{ std::forward<Args> ( value_ )... };
     }
+
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
     [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
 
@@ -443,7 +444,7 @@ struct vm_concurrent_vector {
     vm m_vm;
     pointer m_begin, m_end;
     alignas ( 64 ) mutex m_end_mutex;
-};
+}; // namespace sax
 
 template<typename ValueType, std::size_t Capacity>
 alignas ( 64 )
