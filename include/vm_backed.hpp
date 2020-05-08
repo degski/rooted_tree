@@ -98,6 +98,10 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 #endif
 }
 
+// Returns rounded-up multiple of n.
+[[nodiscard]] inline constexpr std::size_t round_multiple ( std::size_t n_, std::size_t multiple_ ) noexcept {
+    return ( ( n_ + multiple_ - 1 ) / multiple_ ) * multiple_;
+}
 namespace vm_vector { // sax::detail::vm_vector
 
 template<typename Pointer>
@@ -246,9 +250,7 @@ struct vm_concurrent_vector {
     using thread_local_data_map_kv_pair   = typename thread_local_data_map::value_type;
 
     vm_concurrent_vector ( ) :
-        m_thread_local_data_colony{ make_thread_local_data_colony ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{
-            m_begin
-        } {
+        m_thread_local_data_colony{ make_colony ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{ m_begin } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -266,7 +268,7 @@ struct vm_concurrent_vector {
     }
 
     ~vm_concurrent_vector ( ) {
-        recycle_thread_local_data_colony ( );
+        recycle_colony ( );
         if constexpr ( not std::is_trivial<value_type>::value )
             for ( value_type & v : *this )
                 v.~value_type ( );
@@ -391,13 +393,13 @@ struct vm_concurrent_vector {
     static thread_local_data_map s_this_map;
     static thread_local_data_colony_vector s_freelist;
 
-    [[nodiscard]] thread_local_data_colony & make_thread_local_data_colony ( ) {
+    [[nodiscard]] thread_local_data_colony & make_colony ( ) {
         std::pair this_thread_local_data_colony = { this, thread_local_data_colony{} };
         std::lock_guard lock ( s_this_map_mutex );
         return insert_this ( std::move ( this_thread_local_data_colony ) );
     }
 
-    void recycle_thread_local_data_colony ( ) noexcept {
+    void recycle_colony ( ) noexcept {
         std::lock_guard lock ( s_this_map_mutex );
         s_freelist.emplace_back ( );
         auto it = s_this_map.find ( this );
