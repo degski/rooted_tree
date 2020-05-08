@@ -254,13 +254,13 @@ struct vm_concurrent_vector {
     };
 
     vm_concurrent_vector ( std::initializer_list<ValueType> il_ ) : vm_concurrent_vector{ } {
-        m_vm.allocate ( m_begin, alloc_page_size_b );
+        grow_allocated_by ( alloc_page_size_b );
         for ( ValueType & v : il_ )
             *m_end++ = value_type{ v };
     }
 
     explicit vm_concurrent_vector ( size_type s_, value_type const & v_ = value_type{ } ) : vm_concurrent_vector{ } {
-        m_vm.allocate ( m_begin, round_up_to_alloc_page_size_b ( s_ * sizeof ( value_type ) ) );
+        grow_allocated_by ( round_up_to_alloc_page_size_b ( s_ * sizeof ( value_type ) ) );
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
@@ -284,20 +284,20 @@ struct vm_concurrent_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        thread_local_data & tl = get_thread_local_data ( );
-        if ( tl.begin == tl.end ) {
+        thread_local_data & tld = get_thread_local_data ( );
+        if ( tld.begin == tld.end ) {
             {
                 std::lock_guard lock ( m_end_mutex );
                 if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_vm.committed, false,
                                       1.0 - static_cast<double> ( sizeof ( value_type ) ) /
                                                 static_cast<double> ( alloc_page_size_b ) ) )
-                    m_vm.allocate ( m_begin, alloc_page_size_b );
-                tl.begin = m_end;
+                    grow_allocated_by ( alloc_page_size_b );
+                tld.begin = m_end;
                 m_end += thread_reserve_size;
             }
-            tl.end = tl.begin + thread_reserve_size;
+            tld.end = tld.begin + thread_reserve_size;
         }
-        return *new ( tl.begin++ ) value_type{ std::forward<Args> ( value_ )... };
+        return *new ( tld.begin++ ) value_type{ std::forward<Args> ( value_ )... };
     }
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
     [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
@@ -427,6 +427,8 @@ struct vm_concurrent_vector {
             return s_this_map.insert ( std::move ( this_thread_local_data_ ) ).first->second;
         }
     }
+
+    void grow_allocated_by ( std::size_t size_ ) { m_vm.allocate ( m_begin, size_ ); }
 
     thread_local_data_colony & m_thread_local_data_colony;
     vm m_vm;
