@@ -402,15 +402,16 @@ struct vm_concurrent_vector {
         s_freelist.emplace_back ( );
         auto it = s_this_map.find ( this );
         std::swap ( s_freelist.back ( ), it->second );
+        s_freelist.back ( ).clear ( );
         s_this_map.erase ( it );
     }
 
-    [[nodiscard]] thread_local_data & make_thread_local_data ( ) const {
+    [[nodiscard]] thread_local_data & make_thread_local_data ( ) { // non-const.
         std::lock_guard lock ( s_thread_mutex );
         return *m_thread_local_data_colony.emplace ( );
     }
 
-    [[nodiscard]] thread_local_data & get_thread_local_data ( ) const {
+    [[nodiscard]] thread_local_data & get_thread_local_data ( ) { // non-const.
         static thread_local thread_local_data & this_object_thread_local_data = make_thread_local_data ( );
         return this_object_thread_local_data;
     }
