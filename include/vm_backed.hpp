@@ -48,7 +48,9 @@
 #    endif
 
 #else
+
 #    include <sys/mman.h>
+
 #endif
 
 #include <cassert>
@@ -70,15 +72,15 @@
 #include <utility>
 #include <vector>
 
-#define VM_VECTOR_USE_TBB 1
 #define VM_VECTOR_USE_BOOST 1
-#define VM_VECTOR_USE_HEDLEY 1
 
-#if VM_VECTOR_USE_TBB
-#    include <tbb/spin_mutex.h>
+#if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
+#    include <deque>
 #else
-
+#    include <boost/container/deque.hpp>
 #endif
+
+#define VM_VECTOR_USE_HEDLEY 1
 
 #if VM_VECTOR_USE_HEDLEY
 #    include <hedley.hpp>
@@ -90,24 +92,7 @@
 #    define HEDLEY_PURE
 #endif
 
-#if ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER )
-#    include <deque>
-#else
-#    include <boost/container/deque.hpp>
-#endif
-
 namespace sax {
-
-namespace detail ::vm_vector {
-
-template<typename T>
-#if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
-using deque = std::deque<T>;
-#else
-using deque = boost::container::deque<T>;
-#endif
-
-} // namespace detail::vm_vector
 
 namespace detail {
 
@@ -119,163 +104,14 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 #endif
 }
 
-} // namespace detail
+namespace vm_vector {
 
-template<typename ValueType, std::size_t Capacity>
-struct vm_vector {
-
-    using value_type = ValueType;
-
-    using pointer       = value_type *;
-    using const_pointer = value_type const *;
-
-    using reference       = value_type &;
-    using const_reference = value_type const &;
-    using rv_reference    = value_type &&;
-
-    using size_type       = std::size_t;
-    using difference_type = std::make_signed<size_type>;
-
-    using iterator               = pointer;
-    using const_iterator         = const_pointer;
-    using reverse_iterator       = pointer;
-    using const_reverse_iterator = const_pointer;
-
-    vm_vector ( ) :
-        m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, committed{ 0 } {
-        if ( HEDLEY_UNLIKELY ( not m_begin ) )
-            throw std::bad_alloc ( );
-    };
-
-    vm_vector ( std::initializer_list<value_type> il_ ) : vm_vector{ } {
-        for ( value_type const & v : il_ )
-            push_back ( v );
-    }
-
-    explicit vm_vector ( size_type const s_, value_type const & v_ ) : vm_vector{ } {
-        size_type rc = required_b ( s_ );
-        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, rc, MEM_COMMIT, PAGE_READWRITE ) ) )
-            throw std::bad_alloc ( );
-        committed = rc;
-        for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
-            new ( m_end ) value_type{ v_ };
-    }
-
-    ~vm_vector ( ) {
-        if constexpr ( not std::is_trivial<value_type>::value ) {
-            for ( value_type & v : *this )
-                v.~value_type ( );
-        }
-        if ( HEDLEY_LIKELY ( m_begin ) ) {
-            VirtualFree ( m_begin, capacity_b ( ), MEM_RELEASE );
-            m_end = m_begin = nullptr;
-            committed       = 0;
-        }
-    }
-
-    [[nodiscard]] constexpr size_type capacity ( ) const noexcept { return Capacity; }
-    [[nodiscard]] size_type size ( ) const noexcept {
-        return reinterpret_cast<value_type *> ( m_end ) - reinterpret_cast<value_type *> ( m_begin );
-    }
-    [[nodiscard]] constexpr size_type max_size ( ) const noexcept { return capacity ( ); }
-
-    template<typename... Args>
-    [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        if ( HEDLEY_UNLIKELY ( size_b ( ) == committed ) ) {
-            size_type cib = std::min ( committed ? grow ( committed ) : alloc_page_size_b, capacity_b ( ) );
-            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - committed, MEM_COMMIT, PAGE_READWRITE ) ) )
-                throw std::bad_alloc ( );
-            committed = cib;
-        }
-        return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
-    }
-    [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
-    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
-
-    void pop_back ( ) noexcept {
-        assert ( size ( ) );
-        m_end--;
-        if constexpr ( not std::is_trivial<value_type>::value )
-            m_end->~value_type ( );
-    }
-
-    [[nodiscard]] const_pointer data ( ) const noexcept { return m_begin; }
-    [[nodiscard]] pointer data ( ) noexcept { return const_cast<pointer> ( std::as_const ( *this ).data ( ) ); }
-
-    [[nodiscard]] const_iterator begin ( ) const noexcept { return m_begin; }
-    [[nodiscard]] const_iterator cbegin ( ) const noexcept { return begin ( ); }
-    [[nodiscard]] iterator begin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).begin ( ) ); }
-
-    [[nodiscard]] const_iterator end ( ) const noexcept { return m_end; }
-    [[nodiscard]] const_iterator cend ( ) const noexcept { return end ( ); }
-    [[nodiscard]] iterator end ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).end ( ) ); }
-
-    [[nodiscard]] const_iterator rbegin ( ) const noexcept { return m_end - 1; }
-    [[nodiscard]] const_iterator crbegin ( ) const noexcept { return rbegin ( ); }
-    [[nodiscard]] iterator rbegin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rbegin ( ) ); }
-
-    [[nodiscard]] const_iterator rend ( ) const noexcept { return m_begin - 1; }
-    [[nodiscard]] const_iterator crend ( ) const noexcept { return rend ( ); }
-    [[nodiscard]] iterator rend ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rend ( ) ); }
-
-    [[nodiscard]] const_reference front ( ) const noexcept { return *begin ( ); }
-    [[nodiscard]] reference front ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).front ( ) ); }
-
-    [[nodiscard]] const_reference back ( ) const noexcept { return *rbegin ( ); }
-    [[nodiscard]] reference back ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).back ( ) ); }
-
-    [[nodiscard]] const_reference at ( size_type const i_ ) const {
-        if constexpr ( std::is_signed<size_type>::value ) {
-            if ( HEDLEY_LIKELY ( 0 <= i_ and i_ < size ( ) ) )
-                return m_begin[ i_ ];
-            else
-                throw std::runtime_error ( "index out of bounds" );
-        }
-        else {
-            if ( HEDLEY_LIKELY ( i_ < size ( ) ) )
-                return m_begin[ i_ ];
-            else
-                throw std::runtime_error ( "index out of bounds" );
-        }
-    }
-    [[nodiscard]] reference at ( size_type const i_ ) { return const_cast<reference> ( std::as_const ( *this ).at ( i_ ) ); }
-
-    [[nodiscard]] const_reference operator[] ( size_type const i_ ) const noexcept {
-        if constexpr ( std::is_signed<size_type>::value )
-            assert ( 0 <= i_ and i_ < size ( ) );
-        else
-            assert ( i_ < size ( ) );
-        return m_begin[ i_ ];
-    }
-    [[nodiscard]] reference operator[] ( size_type const i_ ) noexcept {
-        return const_cast<reference> ( std::as_const ( *this ).operator[] ( i_ ) );
-    }
-
-    private:
-    static constexpr size_type os_vm_page_size_b = static_cast<size_type> ( 65'536 );         // 64KB
-    static constexpr size_type alloc_page_size_b = static_cast<size_type> ( 1'600 * 65'536 ); // 100MB
-
-    [[nodiscard]] size_type required_b ( size_type const & r_ ) const noexcept {
-        std::size_t req = static_cast<std::size_t> ( r_ ) * sizeof ( value_type );
-        return req % os_vm_page_size_b ? ( ( req + os_vm_page_size_b ) / os_vm_page_size_b ) * os_vm_page_size_b : req;
-    }
-    [[nodiscard]] constexpr size_type capacity_b ( ) const noexcept {
-        constexpr std::size_t cap = static_cast<std::size_t> ( Capacity ) * sizeof ( value_type );
-        return cap % os_vm_page_size_b ? ( ( cap + os_vm_page_size_b ) / os_vm_page_size_b ) * os_vm_page_size_b : cap;
-    }
-    [[nodiscard]] size_type size_b ( ) const noexcept {
-        return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
-    }
-
-    [[nodiscard]] HEDLEY_PURE size_type grow ( size_type const & cap_b_ ) const noexcept { return cap_b_ + alloc_page_size_b; }
-    [[nodiscard]] HEDLEY_PURE size_type shrink ( size_type const & cap_b_ ) const noexcept { return cap_b_ - alloc_page_size_b; }
-
-    pointer m_begin, m_end;
-    size_type committed;
-};
-
-namespace detail ::vm_vector {
+template<typename T>
+#if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
+using deque = std::deque<T>;
+#else
+using deque = boost::container::deque<T>;
+#endif
 
 template<typename Pointer>
 struct vm {
@@ -288,7 +124,7 @@ struct vm {
 #endif
     }
 
-    HEDLEY_NEVER_INLINE void allocate ( void * pointer_, std::size_t size_ ) {
+    HEDLEY_NEVER_INLINE void allocate ( void * const pointer_, std::size_t size_ ) {
 #if defined( _MSC_VER )
         if ( HEDLEY_UNLIKELY (
                  not VirtualAlloc ( reinterpret_cast<char *> ( pointer_ ) + committed, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
@@ -300,7 +136,7 @@ struct vm {
         committed += size_;
     }
 
-    void free ( void * pointer_, std::size_t size_ ) noexcept {
+    void free ( void * const pointer_, std::size_t size_ ) noexcept {
 #if defined( _MSC_VER )
         VirtualFree ( pointer_, 0, MEM_RELEASE );
 #else
@@ -312,11 +148,65 @@ struct vm {
     std::size_t committed = 0;
 };
 
+struct srw_lock final {
+
+    srw_lock ( ) noexcept             = default;
+    srw_lock ( srw_lock const & )     = delete;
+    srw_lock ( srw_lock && ) noexcept = delete;
+    ~srw_lock ( ) noexcept            = default;
+
+    srw_lock & operator= ( srw_lock const & ) = delete;
+    srw_lock & operator= ( srw_lock && ) noexcept = delete;
+
+    // read and write.
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept { AcquireSRWLockExclusive ( std::addressof ( handle ) ); }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept {
+        return 0 != TryAcquireSRWLockExclusive ( std::addressof ( handle ) );
+    }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { ReleaseSRWLockExclusive ( std::addressof ( handle ) ); }
+
+    // read.
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) const noexcept {
+        AcquireSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
+    }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) const noexcept {
+        return 0 != TryAcquireSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
+    }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) const noexcept {
+        ReleaseSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
+    }
+
+    private:
+    SRWLOCK handle = SRWLOCK_INIT;
+};
+
+struct tas_spin_lock final {
+
+    tas_spin_lock ( ) noexcept                  = default;
+    tas_spin_lock ( tas_spin_lock const & )     = delete;
+    tas_spin_lock ( tas_spin_lock && ) noexcept = delete;
+    ~tas_spin_lock ( ) noexcept                 = default;
+
+    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
+    tas_spin_lock & operator= ( tas_spin_lock && ) noexcept = delete;
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
+        while ( flag.exchange ( 1, std::memory_order_acquire ) )
+            cpu_pause ( );
+    }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return not flag.exchange ( 1, std::memory_order_acquire ); }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
+
+    private:
+    std::atomic<char> flag = { 0 };
+};
+
 template<typename Data>
 struct vm_epilog : public Data {
-    tbb::spin_mutex lock;
-    // tas_spin_lock lock;
-    tbb::atomic<char const> atom;
+    tas_spin_lock lock;
+    std::atomic<char> atom;
     template<typename... Args>
     vm_epilog ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
 };
@@ -327,53 +217,8 @@ struct vm_aligner : public Data {
     vm_aligner ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... } { };
 };
 
-struct tas_spin_lock final {
-
-    tas_spin_lock ( ) noexcept              = default;
-    tas_spin_lock ( tas_spin_lock const & ) = delete;
-    tas_spin_lock ( tas_spin_lock && )      = default;
-    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
-    tas_spin_lock & operator= ( tas_spin_lock && ) = default;
-
-    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
-        while ( flag.exchange ( 1, std::memory_order_acquire ) )
-            detail::cpu_pause ( );
-    }
-
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return not flag.exchange ( 1, std::memory_order_acquire ); }
-
-    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
-
-    private:
-    std::atomic<char> flag = { 0 };
-};
-
-struct srw_lock final {
-
-    srw_lock ( ) noexcept             = default;
-    srw_lock ( srw_lock const & )     = delete;
-    srw_lock ( srw_lock && ) noexcept = default;
-    ~srw_lock ( ) noexcept            = default;
-    srw_lock & operator= ( srw_lock const & ) = delete;
-    srw_lock & operator= ( srw_lock && ) noexcept = default;
-
-    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept { AcquireSRWLockExclusive ( std::addressof ( m_handle ) ); }
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept {
-        return 0 != TryAcquireSRWLockExclusive ( std::addressof ( m_handle ) );
-    }
-    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { ReleaseSRWLockExclusive ( std::addressof ( m_handle ) ); }
-
-    HEDLEY_ALWAYS_INLINE void lock ( ) const noexcept { AcquireSRWLockShared ( std::addressof ( m_handle ) ); }
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) const noexcept {
-        return 0 != TryAcquireSRWLockShared ( std::addressof ( m_handle ) );
-    }
-    HEDLEY_ALWAYS_INLINE void unlock ( ) const noexcept { ReleaseSRWLockShared ( std::addressof ( m_handle ) ); }
-
-    private:
-    mutable SRWLOCK m_handle = SRWLOCK_INIT;
-};
-
-} // namespace detail::vm_vector
+} // namespace vm_vector
+} // namespace detail
 
 template<typename ValueType, std::size_t Capacity>
 struct vm_concurrent_vector {
@@ -607,5 +452,159 @@ template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::thread_data_deque_vector vm_concurrent_vector<ValueType, Capacity>::s_freelist;
+
+template<typename ValueType, std::size_t Capacity>
+struct vm_vector {
+
+    using value_type = ValueType;
+
+    using pointer       = value_type *;
+    using const_pointer = value_type const *;
+
+    using reference       = value_type &;
+    using const_reference = value_type const &;
+    using rv_reference    = value_type &&;
+
+    using size_type       = std::size_t;
+    using difference_type = std::make_signed<size_type>;
+
+    using iterator               = pointer;
+    using const_iterator         = const_pointer;
+    using reverse_iterator       = pointer;
+    using const_reverse_iterator = const_pointer;
+
+    vm_vector ( ) :
+        m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
+        m_end{ m_begin }, committed{ 0 } {
+        if ( HEDLEY_UNLIKELY ( not m_begin ) )
+            throw std::bad_alloc ( );
+    };
+
+    vm_vector ( std::initializer_list<value_type> il_ ) : vm_vector{ } {
+        for ( value_type const & v : il_ )
+            push_back ( v );
+    }
+
+    explicit vm_vector ( size_type const s_, value_type const & v_ ) : vm_vector{ } {
+        size_type rc = required_b ( s_ );
+        if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, rc, MEM_COMMIT, PAGE_READWRITE ) ) )
+            throw std::bad_alloc ( );
+        committed = rc;
+        for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
+            new ( m_end ) value_type{ v_ };
+    }
+
+    ~vm_vector ( ) {
+        if constexpr ( not std::is_trivial<value_type>::value ) {
+            for ( value_type & v : *this )
+                v.~value_type ( );
+        }
+        if ( HEDLEY_LIKELY ( m_begin ) ) {
+            VirtualFree ( m_begin, capacity_b ( ), MEM_RELEASE );
+            m_end = m_begin = nullptr;
+            committed       = 0;
+        }
+    }
+
+    [[nodiscard]] constexpr size_type capacity ( ) const noexcept { return Capacity; }
+    [[nodiscard]] size_type size ( ) const noexcept {
+        return reinterpret_cast<value_type *> ( m_end ) - reinterpret_cast<value_type *> ( m_begin );
+    }
+    [[nodiscard]] constexpr size_type max_size ( ) const noexcept { return capacity ( ); }
+
+    template<typename... Args>
+    [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
+        if ( HEDLEY_UNLIKELY ( size_b ( ) == committed ) ) {
+            size_type cib = std::min ( committed ? grow ( committed ) : alloc_page_size_b, capacity_b ( ) );
+            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - committed, MEM_COMMIT, PAGE_READWRITE ) ) )
+                throw std::bad_alloc ( );
+            committed = cib;
+        }
+        return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
+    }
+    [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
+    [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
+
+    void pop_back ( ) noexcept {
+        assert ( size ( ) );
+        m_end--;
+        if constexpr ( not std::is_trivial<value_type>::value )
+            m_end->~value_type ( );
+    }
+
+    [[nodiscard]] const_pointer data ( ) const noexcept { return m_begin; }
+    [[nodiscard]] pointer data ( ) noexcept { return const_cast<pointer> ( std::as_const ( *this ).data ( ) ); }
+
+    [[nodiscard]] const_iterator begin ( ) const noexcept { return m_begin; }
+    [[nodiscard]] const_iterator cbegin ( ) const noexcept { return begin ( ); }
+    [[nodiscard]] iterator begin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).begin ( ) ); }
+
+    [[nodiscard]] const_iterator end ( ) const noexcept { return m_end; }
+    [[nodiscard]] const_iterator cend ( ) const noexcept { return end ( ); }
+    [[nodiscard]] iterator end ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).end ( ) ); }
+
+    [[nodiscard]] const_iterator rbegin ( ) const noexcept { return m_end - 1; }
+    [[nodiscard]] const_iterator crbegin ( ) const noexcept { return rbegin ( ); }
+    [[nodiscard]] iterator rbegin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rbegin ( ) ); }
+
+    [[nodiscard]] const_iterator rend ( ) const noexcept { return m_begin - 1; }
+    [[nodiscard]] const_iterator crend ( ) const noexcept { return rend ( ); }
+    [[nodiscard]] iterator rend ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rend ( ) ); }
+
+    [[nodiscard]] const_reference front ( ) const noexcept { return *begin ( ); }
+    [[nodiscard]] reference front ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).front ( ) ); }
+
+    [[nodiscard]] const_reference back ( ) const noexcept { return *rbegin ( ); }
+    [[nodiscard]] reference back ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).back ( ) ); }
+
+    [[nodiscard]] const_reference at ( size_type const i_ ) const {
+        if constexpr ( std::is_signed<size_type>::value ) {
+            if ( HEDLEY_LIKELY ( 0 <= i_ and i_ < size ( ) ) )
+                return m_begin[ i_ ];
+            else
+                throw std::runtime_error ( "index out of bounds" );
+        }
+        else {
+            if ( HEDLEY_LIKELY ( i_ < size ( ) ) )
+                return m_begin[ i_ ];
+            else
+                throw std::runtime_error ( "index out of bounds" );
+        }
+    }
+    [[nodiscard]] reference at ( size_type const i_ ) { return const_cast<reference> ( std::as_const ( *this ).at ( i_ ) ); }
+
+    [[nodiscard]] const_reference operator[] ( size_type const i_ ) const noexcept {
+        if constexpr ( std::is_signed<size_type>::value )
+            assert ( 0 <= i_ and i_ < size ( ) );
+        else
+            assert ( i_ < size ( ) );
+        return m_begin[ i_ ];
+    }
+    [[nodiscard]] reference operator[] ( size_type const i_ ) noexcept {
+        return const_cast<reference> ( std::as_const ( *this ).operator[] ( i_ ) );
+    }
+
+    private:
+    static constexpr size_type os_vm_page_size_b = static_cast<size_type> ( 65'536 );         // 64KB
+    static constexpr size_type alloc_page_size_b = static_cast<size_type> ( 1'600 * 65'536 ); // 100MB
+
+    [[nodiscard]] size_type required_b ( size_type const & r_ ) const noexcept {
+        std::size_t req = static_cast<std::size_t> ( r_ ) * sizeof ( value_type );
+        return req % os_vm_page_size_b ? ( ( req + os_vm_page_size_b ) / os_vm_page_size_b ) * os_vm_page_size_b : req;
+    }
+    [[nodiscard]] constexpr size_type capacity_b ( ) const noexcept {
+        constexpr std::size_t cap = static_cast<std::size_t> ( Capacity ) * sizeof ( value_type );
+        return cap % os_vm_page_size_b ? ( ( cap + os_vm_page_size_b ) / os_vm_page_size_b ) * os_vm_page_size_b : cap;
+    }
+    [[nodiscard]] size_type size_b ( ) const noexcept {
+        return static_cast<size_type> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
+    }
+
+    [[nodiscard]] HEDLEY_PURE size_type grow ( size_type const & cap_b_ ) const noexcept { return cap_b_ + alloc_page_size_b; }
+    [[nodiscard]] HEDLEY_PURE size_type shrink ( size_type const & cap_b_ ) const noexcept { return cap_b_ - alloc_page_size_b; }
+
+    pointer m_begin, m_end;
+    size_type committed;
+};
 
 } // namespace sax

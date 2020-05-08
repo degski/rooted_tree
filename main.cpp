@@ -40,6 +40,12 @@
 #include <sax/prng_sfc.hpp>
 #include <sax/uniform_int_distribution.hpp>
 
+template<class F, class... Ts>
+void reverse_for_each ( F f, Ts... ts ) {
+    int dummy;
+    ( ( f ( ts ), dummy ) = ... = 0 );
+}
+
 #if defined( _DEBUG )
 #    define RANDOM 0
 #else
