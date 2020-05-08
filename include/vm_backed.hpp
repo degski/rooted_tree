@@ -72,13 +72,7 @@
 #include <utility>
 #include <vector>
 
-#define VM_VECTOR_USE_BOOST 1
-
-#if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
-#    include <deque>
-#else
-#    include <boost/container/deque.hpp>
-#endif
+#include <plf/plf_colony.h>
 
 #define VM_VECTOR_USE_HEDLEY 1
 
@@ -105,13 +99,6 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 }
 
 namespace vm_vector { // sax::detail::vm_vector
-
-template<typename T>
-#if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
-using deque = std::deque<T>;
-#else
-using deque = boost::container::deque<T>;
-#endif
 
 template<typename Pointer>
 struct vm {
@@ -253,13 +240,13 @@ struct vm_concurrent_vector {
         pointer begin = nullptr, end = nullptr;
     };
 
-    using thread_data_deque         = detail::vm_vector::deque<thread_data>;
-    using thread_data_deque_vector  = std::vector<thread_data_deque>;
-    using instance_data_map         = std::map<vm_concurrent_vector *, thread_data_deque>;
+    using thread_data_colony        = plf::colony<thread_data>;
+    using thread_data_colony_vector = std::vector<thread_data_colony>;
+    using instance_data_map         = std::map<vm_concurrent_vector *, thread_data_colony>;
     using instance_data_map_kv_pair = typename instance_data_map::value_type;
 
     vm_concurrent_vector ( ) :
-        m_thread_data_deque{ make_thread_data_deque ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{ m_begin } {
+        m_thread_data_colony{ make_thread_data_colony ( ) }, m_vm{ }, m_begin{ m_vm.reserve ( capacity_b ( ) ) }, m_end{ m_begin } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -277,7 +264,7 @@ struct vm_concurrent_vector {
     }
 
     ~vm_concurrent_vector ( ) {
-        destruct_thread_data_deque ( );
+        destruct_thread_data_colony ( );
         if constexpr ( not std::is_trivial<value_type>::value )
             for ( value_type & v : *this )
                 v.~value_type ( );
@@ -399,15 +386,15 @@ struct vm_concurrent_vector {
     alignas ( 64 ) static mutex s_instance_mutex;
     alignas ( 64 ) static mutex s_thread_mutex;
     static instance_data_map s_instance;
-    static thread_data_deque_vector s_freelist;
+    static thread_data_colony_vector s_freelist;
 
-    [[nodiscard]] thread_data_deque & make_thread_data_deque ( ) {
-        std::pair this_thread_data_deque = { this, thread_data_deque{} };
+    [[nodiscard]] thread_data_colony & make_thread_data_colony ( ) {
+        std::pair this_thread_data_colony = { this, thread_data_colony{} };
         std::lock_guard lock ( s_instance_mutex );
-        return insert_instance_this_deque ( std::move ( this_thread_data_deque ) );
+        return insert_instance_this_colony ( std::move ( this_thread_data_colony ) );
     }
 
-    void destruct_thread_data_deque ( ) noexcept {
+    void destruct_thread_data_colony ( ) noexcept {
         std::lock_guard lock ( s_instance_mutex );
         s_freelist.emplace_back ( );
         auto it = s_instance.find ( this );
@@ -417,7 +404,7 @@ struct vm_concurrent_vector {
 
     [[nodiscard]] thread_data & make_thread_data ( ) const {
         std::lock_guard lock ( s_thread_mutex );
-        return m_thread_data_deque.emplace_back ( );
+        return *m_thread_data_colony.emplace ( );
     }
 
     [[nodiscard]] thread_data & get_thread_data ( ) const {
@@ -425,19 +412,19 @@ struct vm_concurrent_vector {
         return data;
     }
 
-    [[nodiscard]] HEDLEY_NEVER_INLINE thread_data_deque &
-    insert_instance_this_deque ( instance_data_map_kv_pair && this_thread_data_deque_ ) {
+    [[nodiscard]] HEDLEY_NEVER_INLINE thread_data_colony &
+    insert_instance_this_colony ( instance_data_map_kv_pair && this_thread_data_colony_ ) {
         if ( s_freelist.size ( ) ) {
-            thread_data_deque & tdd = s_instance.insert ( { this, std::move ( s_freelist.back ( ) ) } ).first->second;
+            thread_data_colony & tdd = s_instance.insert ( { this, std::move ( s_freelist.back ( ) ) } ).first->second;
             s_freelist.pop_back ( );
             return tdd;
         }
         else {
-            return s_instance.insert ( std::move ( this_thread_data_deque_ ) ).first->second;
+            return s_instance.insert ( std::move ( this_thread_data_colony_ ) ).first->second;
         }
     }
 
-    thread_data_deque & m_thread_data_deque;
+    thread_data_colony & m_thread_data_colony;
     vm m_vm;
     pointer m_begin, m_end;
     alignas ( 64 ) mutex m_end_mutex;
@@ -451,7 +438,7 @@ alignas ( 64 ) typename vm_concurrent_vector<ValueType, Capacity>::mutex vm_conc
 template<typename ValueType, std::size_t Capacity>
 typename vm_concurrent_vector<ValueType, Capacity>::instance_data_map vm_concurrent_vector<ValueType, Capacity>::s_instance;
 template<typename ValueType, std::size_t Capacity>
-typename vm_concurrent_vector<ValueType, Capacity>::thread_data_deque_vector vm_concurrent_vector<ValueType, Capacity>::s_freelist;
+typename vm_concurrent_vector<ValueType, Capacity>::thread_data_colony_vector vm_concurrent_vector<ValueType, Capacity>::s_freelist;
 
 template<typename ValueType, std::size_t Capacity>
 struct vm_vector {
