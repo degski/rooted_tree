@@ -83,7 +83,7 @@
 #define VM_VECTOR_USE_HEDLEY 1
 
 #if VM_VECTOR_USE_HEDLEY
-#    include <hedley.hpp>
+#    include <hedley.h>
 #else
 #    define HEDLEY_LIKELY( expr ) ( !!( expr ) )
 #    define HEDLEY_UNLIKELY( expr ) ( !!( expr ) )
@@ -92,9 +92,9 @@
 #    define HEDLEY_PURE
 #endif
 
-namespace sax {
+namespace sax { // sax
 
-namespace detail {
+namespace detail { // sax::detail
 
 HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 #if ( defined( __clang__ ) or defined( __GNUC__ ) )
@@ -104,7 +104,7 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 #endif
 }
 
-namespace vm_vector {
+namespace vm_vector { // sax::detail::vm_vector
 
 template<typename T>
 #if ( ( defined( __clang__ ) or defined( __GNUC__ ) ) and not defined( _MSC_VER ) ) or not VM_VECTOR_USE_BOOST
