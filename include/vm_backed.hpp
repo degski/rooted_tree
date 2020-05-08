@@ -290,17 +290,19 @@ struct vm_concurrent_vector {
 
         constexpr std::size_t thread_reserve_size_b = thread_reserve_size * sizeof ( value_type );
 
-        auto next_end = [ = ] ( pointer p ) {
+        auto next = [ = ] ( pointer p ) {
             return reinterpret_cast<pointer> (
                 ( ( reinterpret_cast<std::size_t> ( p ) + thread_reserve_size_b ) / thread_reserve_size_b ) *
                 thread_reserve_size_b );
         };
 
         thread_local_data & tld = get_thread_local_data ( );
-        if ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) &
-                                     ( thread_reserve_size_b - 1 ) ) ) { // has tld.begin reached its end.
+        if ( HEDLEY_PREDICT ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) & ( thread_reserve_size_b - 1 ) ),
+                              true,
+                              1.0 / ( static_cast<double> ( thread_reserve_size ) / 2.0 ) ) ) { // has tld.begin reached its end.
+
             std::lock_guard lock ( m_end_mutex );
-            m_end = next_end ( ( tld.begin = m_end ) );
+            tld.begin = std::exchange ( m_end, next ( m_end ) );
             if ( HEDLEY_PREDICT ( m_end >= m_begin + m_vm.committed, false,
                                   1.0 -
                                       static_cast<double> ( sizeof ( value_type ) ) / static_cast<double> ( alloc_page_size_b ) ) )
