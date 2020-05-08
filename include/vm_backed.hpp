@@ -262,7 +262,7 @@ struct vm_concurrent_vector {
     }
 
     explicit vm_concurrent_vector ( size_type s_, value_type const & v_ = value_type{ } ) : vm_concurrent_vector{ } {
-        grow_allocated_by ( round_up_to_alloc_page_size_b ( s_ * sizeof ( value_type ) ) );
+        grow_allocated_by ( round_alloc_page_size_b ( s_ * sizeof ( value_type ) ) );
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
@@ -376,12 +376,13 @@ struct vm_concurrent_vector {
     // private:
     static constexpr std::size_t alloc_page_size_b = static_cast<std::size_t> ( 1'024 * 65'536 ); // 64MB
 
-    [[nodiscard]] constexpr std::size_t round_up_to_alloc_page_size_b ( std::size_t n_ ) const noexcept {
-        return ( ( n_ + alloc_page_size_b - 1 ) / alloc_page_size_b ) * alloc_page_size_b;
+    // round up!
+    [[nodiscard]] constexpr std::size_t round_alloc_page_size_b ( std::size_t n_ ) const noexcept {
+        return detail::round_multiple ( n_, alloc_page_size_b );
     }
 
     [[nodiscard]] constexpr std::size_t capacity_b ( ) const noexcept {
-        return round_up_to_alloc_page_size_b ( Capacity * sizeof ( value_type ) );
+        return round_alloc_page_size_b ( Capacity * sizeof ( value_type ) );
     }
     [[nodiscard]] std::size_t size_b ( ) const noexcept {
         return static_cast<std::size_t> ( reinterpret_cast<char *> ( m_end ) - reinterpret_cast<char *> ( m_begin ) );
