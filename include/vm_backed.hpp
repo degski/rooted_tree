@@ -132,6 +132,8 @@ struct tas_spin_lock final {
             detail::cpu_pause ( );
     }
 
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return not flag.exchange ( 1, std::memory_order_acquire ); }
+
     HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
 
     private:
