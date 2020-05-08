@@ -195,13 +195,21 @@ struct tas_spin_lock final {
     std::atomic<char> flag = { 0 };
 };
 
+template<typename T, typename = int>
+struct has_vm_vector_atom : std::false_type {};
+template<typename T>
+struct has_vm_vector_atom<T, decltype ( ( void ) T::vm_vector_atom, 0 )> : std::true_type {};
+
 template<typename AlignedData>
-struct vm_epilog : public AlignedData {
-    tas_spin_lock lock;
-    std::atomic<char> atom;
+struct vm_epilog_lock_atom : public AlignedData {
+    tas_spin_lock vm_vector_mutex;
+    std::atomic<char> vm_vector_atom;
     template<typename... Args>
-    vm_epilog ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, atom{ 1 } { };
+    vm_epilog_lock_atom ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, vm_vector_atom{ 1 } { };
 };
+
+template<typename AlignedData>
+using vm_epilog = std::conditional_t<has_vm_vector_atom<AlignedData>::value, AlignedData, vm_epilog_lock_atom<AlignedData>>;
 
 template<typename Data>
 struct /* alignas ( 16 ) */ vm_aligner : public Data {
@@ -242,7 +250,8 @@ struct vm_concurrent_vector {
     using vm = detail::vm_vector::vm<pointer>;
 
     struct thread_local_data {
-        pointer begin = nullptr;
+        pointer begin              = nullptr;
+        std::size_t reserve_size_b = 2 * thread_reserve_size * sizeof ( value_type );
     };
 
     using thread_local_data_colony        = plf::colony<thread_local_data>;
@@ -288,25 +297,33 @@ struct vm_concurrent_vector {
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
 
-        constexpr std::size_t thread_reserve_size_b = thread_reserve_size * sizeof ( value_type );
-
-        auto next = [ = ] ( pointer p ) {
-            return reinterpret_cast<pointer> (
-                ( ( reinterpret_cast<std::size_t> ( p ) + thread_reserve_size_b ) / thread_reserve_size_b ) *
-                thread_reserve_size_b );
+        auto next = [ = ] ( pointer p, std::size_t trs ) {
+            return reinterpret_cast<pointer> ( ( ( reinterpret_cast<std::size_t> ( p ) + trs ) / trs ) * trs );
         };
 
         thread_local_data & tld = get_thread_local_data ( );
-        if ( HEDLEY_PREDICT ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) & ( thread_reserve_size_b - 1 ) ),
+
+        if ( HEDLEY_PREDICT ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) & ( tld.reserve_size_b - 1 ) ),
                               true,
                               1.0 / ( static_cast<double> ( thread_reserve_size ) / 2.0 ) ) ) { // has tld.begin reached its end.
-
-            std::lock_guard lock ( m_end_mutex );
-            tld.begin = std::exchange ( m_end, next ( m_end ) );
-            if ( HEDLEY_PREDICT ( m_end >= m_begin + m_vm.committed, false,
-                                  1.0 -
-                                      static_cast<double> ( sizeof ( value_type ) ) / static_cast<double> ( alloc_page_size_b ) ) )
-                grow_allocated_by ( alloc_page_size_b );
+            if ( m_end_mutex.try_lock ( ) ) {
+                // tld.reserve_size_b >>= 1;
+                std::lock_guard lock ( m_end_mutex, std::adopt_lock );
+                tld.begin = std::exchange ( m_end, next ( m_end, tld.reserve_size_b ) );
+                if ( HEDLEY_PREDICT ( m_end >= m_begin + m_vm.committed, false,
+                                      1.0 - static_cast<double> ( sizeof ( value_type ) ) /
+                                                static_cast<double> ( alloc_page_size_b ) ) )
+                    grow_allocated_by ( alloc_page_size_b );
+            }
+            else {
+                tld.reserve_size_b <<= 1;
+                std::lock_guard lock ( m_end_mutex );
+                tld.begin = std::exchange ( m_end, next ( m_end, tld.reserve_size_b ) );
+                if ( HEDLEY_PREDICT ( m_end >= m_begin + m_vm.committed, false,
+                                      1.0 - static_cast<double> ( sizeof ( value_type ) ) /
+                                                static_cast<double> ( alloc_page_size_b ) ) )
+                    grow_allocated_by ( alloc_page_size_b );
+            }
         }
         return *new ( tld.begin++ ) value_type{ std::forward<Args> ( value_ )... };
     }
@@ -377,7 +394,7 @@ struct vm_concurrent_vector {
     }
 
     void await_construction ( const_iterator element_ ) const noexcept {
-        while ( HEDLEY_UNLIKELY ( not element_->atom ) ) // await construction.
+        while ( HEDLEY_UNLIKELY ( not element_->vm_vector_atom ) ) // await construction.
             std::this_thread::yield ( );
     }
     void await_construction ( const_reference element_ ) const noexcept { await_construction ( std::addressof ( element_ ) ); }

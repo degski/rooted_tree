@@ -93,12 +93,12 @@ struct Foo : public sax::rooted_tree_hook {
 };
 
 struct Bar {
-    int value                    = 0;
-    Bar ( ) noexcept             = default;
-    Bar ( Bar const & ) noexcept = default;
+    int value = 0;
 
     explicit Bar ( int const & i_ ) noexcept : value{ i_ } {}
     explicit Bar ( int && i_ ) noexcept : value{ std::move ( i_ ) } {}
+
+    // std::atomic<char> vm_vector_atom = 1; // last member
 };
 
 using ConcurrentTree = sax::concurrent_rooted_tree<Foo>;
