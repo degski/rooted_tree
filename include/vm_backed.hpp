@@ -121,60 +121,6 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 
 } // namespace detail
 
-struct tas_spin_lock final {
-
-    tas_spin_lock ( ) noexcept              = default;
-    tas_spin_lock ( tas_spin_lock const & ) = delete;
-    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
-
-    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
-        while ( flag.exchange ( 1, std::memory_order_acquire ) )
-            detail::cpu_pause ( );
-    }
-
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return not flag.exchange ( 1, std::memory_order_acquire ); }
-
-    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
-
-    private:
-    std::atomic<char> flag = { 0 };
-};
-
-template<typename Pointer>
-struct vm {
-
-    [[nodiscard]] Pointer reserve ( std::size_t size_ ) {
-#if defined( _MSC_VER )
-        return reinterpret_cast<Pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
-#else
-        return reinterpret_cast<Pointer> ( mmap ( nullptr, size_, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 ) );
-#endif
-    }
-
-    HEDLEY_NEVER_INLINE void allocate ( void * pointer_, std::size_t size_ ) {
-#if defined( _MSC_VER )
-        if ( HEDLEY_UNLIKELY (
-                 not VirtualAlloc ( reinterpret_cast<char *> ( pointer_ ) + commited, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
-            throw std::bad_alloc ( );
-#else
-        mmap ( reinterpret_cast<char *> ( pointer_ ) + commited, size_, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1,
-               0 );
-#endif
-        commited += size_;
-    }
-
-    void free ( void * pointer_, std::size_t size_ ) noexcept {
-#if defined( _MSC_VER )
-        VirtualFree ( pointer_, 0, MEM_RELEASE );
-#else
-        munmap ( pointer_, size_ );
-#endif
-        commited = 0;
-    }
-
-    std::size_t commited = 0;
-};
-
 template<typename ValueType, std::size_t Capacity>
 struct vm_vector {
 
@@ -197,7 +143,7 @@ struct vm_vector {
 
     vm_vector ( ) :
         m_begin{ reinterpret_cast<pointer> ( VirtualAlloc ( nullptr, capacity_b ( ), MEM_RESERVE, PAGE_READWRITE ) ) },
-        m_end{ m_begin }, commited{ 0 } {
+        m_end{ m_begin }, committed{ 0 } {
         if ( HEDLEY_UNLIKELY ( not m_begin ) )
             throw std::bad_alloc ( );
     };
@@ -211,7 +157,7 @@ struct vm_vector {
         size_type rc = required_b ( s_ );
         if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, rc, MEM_COMMIT, PAGE_READWRITE ) ) )
             throw std::bad_alloc ( );
-        commited = rc;
+        committed = rc;
         for ( pointer e = m_begin + std::min ( s_, capacity ( ) ); m_end < e; ++m_end )
             new ( m_end ) value_type{ v_ };
     }
@@ -224,7 +170,7 @@ struct vm_vector {
         if ( HEDLEY_LIKELY ( m_begin ) ) {
             VirtualFree ( m_begin, capacity_b ( ), MEM_RELEASE );
             m_end = m_begin = nullptr;
-            commited        = 0;
+            committed       = 0;
         }
     }
 
@@ -236,11 +182,11 @@ struct vm_vector {
 
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
-        if ( HEDLEY_UNLIKELY ( size_b ( ) == commited ) ) {
-            size_type cib = std::min ( commited ? grow ( commited ) : alloc_page_size_b, capacity_b ( ) );
-            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - commited, MEM_COMMIT, PAGE_READWRITE ) ) )
+        if ( HEDLEY_UNLIKELY ( size_b ( ) == committed ) ) {
+            size_type cib = std::min ( committed ? grow ( committed ) : alloc_page_size_b, capacity_b ( ) );
+            if ( HEDLEY_UNLIKELY ( not VirtualAlloc ( m_end, cib - committed, MEM_COMMIT, PAGE_READWRITE ) ) )
                 throw std::bad_alloc ( );
-            commited = cib;
+            committed = cib;
         }
         return *new ( m_end++ ) value_type{ std::forward<Args> ( value_ )... };
     }
@@ -326,10 +272,45 @@ struct vm_vector {
     [[nodiscard]] HEDLEY_PURE size_type shrink ( size_type const & cap_b_ ) const noexcept { return cap_b_ - alloc_page_size_b; }
 
     pointer m_begin, m_end;
-    size_type commited;
+    size_type committed;
 };
 
 namespace detail ::vm_vector {
+
+template<typename Pointer>
+struct vm {
+
+    [[nodiscard]] Pointer reserve ( std::size_t size_ ) {
+#if defined( _MSC_VER )
+        return reinterpret_cast<Pointer> ( VirtualAlloc ( nullptr, size_, MEM_RESERVE, PAGE_READWRITE ) );
+#else
+        return reinterpret_cast<Pointer> ( mmap ( nullptr, size_, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 ) );
+#endif
+    }
+
+    HEDLEY_NEVER_INLINE void allocate ( void * pointer_, std::size_t size_ ) {
+#if defined( _MSC_VER )
+        if ( HEDLEY_UNLIKELY (
+                 not VirtualAlloc ( reinterpret_cast<char *> ( pointer_ ) + committed, size_, MEM_COMMIT, PAGE_READWRITE ) ) )
+            throw std::bad_alloc ( );
+#else
+        mmap ( reinterpret_cast<char *> ( pointer_ ) + committed, size_, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1,
+               0 );
+#endif
+        committed += size_;
+    }
+
+    void free ( void * pointer_, std::size_t size_ ) noexcept {
+#if defined( _MSC_VER )
+        VirtualFree ( pointer_, 0, MEM_RELEASE );
+#else
+        munmap ( pointer_, size_ );
+#endif
+        committed = 0;
+    }
+
+    std::size_t committed = 0;
+};
 
 template<typename Data>
 struct vm_epilog : public Data {
@@ -346,23 +327,47 @@ struct vm_aligner : public Data {
     vm_aligner ( Args &&... args_ ) : Data{ std::forward<Args> ( args_ )... } { };
 };
 
+struct tas_spin_lock final {
+
+    tas_spin_lock ( ) noexcept              = default;
+    tas_spin_lock ( tas_spin_lock const & ) = delete;
+    tas_spin_lock ( tas_spin_lock && )      = default;
+    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
+    tas_spin_lock & operator= ( tas_spin_lock && ) = default;
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
+        while ( flag.exchange ( 1, std::memory_order_acquire ) )
+            detail::cpu_pause ( );
+    }
+
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return not flag.exchange ( 1, std::memory_order_acquire ); }
+
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
+
+    private:
+    std::atomic<char> flag = { 0 };
+};
+
 struct srw_lock final {
 
     srw_lock ( ) noexcept             = default;
+    srw_lock ( srw_lock const & )     = delete;
     srw_lock ( srw_lock && ) noexcept = default;
-    ~srw_lock ( )                     = default;
+    ~srw_lock ( ) noexcept            = default;
+    srw_lock & operator= ( srw_lock const & ) = delete;
     srw_lock & operator= ( srw_lock && ) noexcept = default;
 
-    srw_lock ( srw_lock const & ) = delete;
-    srw_lock & operator= ( srw_lock const & ) = delete;
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept { AcquireSRWLockExclusive ( std::addressof ( m_handle ) ); }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept {
+        return 0 != TryAcquireSRWLockExclusive ( std::addressof ( m_handle ) );
+    }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { ReleaseSRWLockExclusive ( std::addressof ( m_handle ) ); }
 
-    void lock ( ) noexcept { AcquireSRWLockExclusive ( &m_handle ); }
-    [[nodiscard]] bool try_lock ( ) noexcept { return 0 != TryAcquireSRWLockExclusive ( &m_handle ); }
-    void unlock ( ) noexcept { ReleaseSRWLockExclusive ( &m_handle ); } // Look at this...
-
-    void lock ( ) const noexcept { AcquireSRWLockShared ( &m_handle ); }
-    [[nodiscard]] bool try_lock ( ) const noexcept { return 0 != TryAcquireSRWLockShared ( &m_handle ); }
-    void unlock ( ) const noexcept { ReleaseSRWLockShared ( &m_handle ); }
+    HEDLEY_ALWAYS_INLINE void lock ( ) const noexcept { AcquireSRWLockShared ( std::addressof ( m_handle ) ); }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) const noexcept {
+        return 0 != TryAcquireSRWLockShared ( std::addressof ( m_handle ) );
+    }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) const noexcept { ReleaseSRWLockShared ( std::addressof ( m_handle ) ); }
 
     private:
     mutable SRWLOCK m_handle = SRWLOCK_INIT;
@@ -395,9 +400,9 @@ struct vm_concurrent_vector {
     using const_reverse_iterator = const_pointer;
 
     // using mutex = detail::vm_vector::srw_lock;
-    using mutex = tas_spin_lock;
+    using mutex = detail::vm_vector::tas_spin_lock;
 
-    using vm = vm<pointer>;
+    using vm = detail::vm_vector::vm<pointer>;
 
     struct thread_data {
         pointer begin = nullptr, end = nullptr;
@@ -449,7 +454,7 @@ struct vm_concurrent_vector {
         if ( tl.begin == tl.end ) {
             {
                 std::lock_guard lock ( m_end_mutex );
-                if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_vm.commited, false,
+                if ( HEDLEY_PREDICT ( ( size_b ( ) + thread_reserve_size ) >= m_vm.committed, false,
                                       1.0 - static_cast<double> ( sizeof ( value_type ) ) /
                                                 static_cast<double> ( alloc_page_size_b ) ) )
                     m_vm.allocate ( m_begin, alloc_page_size_b );
