@@ -102,6 +102,12 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 [[nodiscard]] inline constexpr std::size_t round_multiple ( std::size_t n_, std::size_t multiple_ ) noexcept {
     return ( ( n_ + multiple_ - 1 ) / multiple_ ) * multiple_;
 }
+
+template<typename T>
+[[nodiscard]] inline constexpr T * round_multiple ( T * pointer_, std::size_t multiple_ ) noexcept {
+    return reinterpret_cast<T *> ( round_multiple ( reinterpret_cast<std::size_t> ( pointer_ ), multiple_ ) );
+}
+
 namespace vm_vector { // sax::detail::vm_vector
 
 template<typename Pointer>
