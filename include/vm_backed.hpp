@@ -297,7 +297,8 @@ struct vm_concurrent_vector {
         };
 
         thread_local_data & tld = get_thread_local_data ( );
-        if ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) & ( thread_reserve_size_b - 1 ) ) ) {
+        if ( not static_cast<bool> ( reinterpret_cast<std::size_t> ( tld.begin ) &
+                                     ( thread_reserve_size_b - 1 ) ) ) { // has tld.begin reached its end.
             std::lock_guard lock ( m_end_mutex );
             m_end = next_end ( ( tld.begin = m_end ) );
             if ( HEDLEY_PREDICT ( m_end >= m_begin + m_vm.committed, false,
