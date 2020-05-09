@@ -32,6 +32,7 @@
 #include <array>
 #include <atomic>
 #include <jthread>
+#include <set>
 #include <type_traits>
 
 #include <plf/plf_nanotimer.h>
@@ -309,7 +310,53 @@ void emplace_back_low_workload ( Type & vec_, int n_ ) {
         vec_.emplace_back ( i );
 }
 
+template<typename A, typename B>
+struct bimap {
+
+    template<typename KeyType, typename ValueType>
+    struct pair {
+        using first_type  = KeyType;
+        using second_type = ValueType;
+        pair ( )          = default;
+        template<typename T1, typename T2>
+        pair ( T1 && key_, T2 && value_ ) : key ( std::forward<T1> ( key_ ) ), value ( std::forward<T2> ( value_ ) ) {}
+        KeyType key;
+        mutable ValueType value;
+    };
+
+    template<typename KeyType, typename ValueType>
+    struct compare {
+        [[nodiscard]] bool operator( ) ( pair<KeyType, ValueType> const & l_, pair<KeyType, ValueType> const & r_ ) const noexcept {
+            return l_.key < r_.key;
+        }
+    };
+
+    template<typename KeyType, typename ValueType>
+    [[nodiscard]] friend bool operator== ( pair<KeyType, ValueType> const & l_, pair<KeyType, ValueType> const & r_ ) noexcept {
+        return l_.key == r_.key;
+    }
+
+    void insert ( A const & a_, B const & b_ ) {
+        auto it   = map_b.insert ( { b_, nullptr } ).first;
+        it->value = const_cast<A *> (
+            std::addressof ( map_a.insert ( { a_, const_cast<B *> ( std::addressof ( it->key ) ) } ).first->key ) );
+    }
+
+    std::set<pair<A, B *>, compare<A, B *>> map_a;
+    std::set<pair<B, A *>, compare<B, A *>> map_b;
+};
+
 int main ( ) {
+
+    // https://stackoverflow.com/a/21917041
+
+    bimap<int, int> m;
+
+    int a = 6, b = 9;
+
+    m.insert ( a, b );
+
+    exit ( 0 );
 
     {
         std::cout << "std::vector (not reserved)" << nl;

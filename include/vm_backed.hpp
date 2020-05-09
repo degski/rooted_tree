@@ -438,7 +438,9 @@ struct vm_concurrent_vector {
 
     [[nodiscard]] thread_local_data & make_thread_local_data ( ) { // non-const.
         std::lock_guard lock ( s_thread_mutex );
-        return *m_thread_local_data_colony.emplace ( );
+        auto it = m_thread_local_data_colony.emplace ( );
+
+        return *it;
     }
 
     [[nodiscard]] thread_local_data & get_thread_local_data ( ) { // non-const.
