@@ -656,13 +656,15 @@ class alignas ( 64 ) bimap {
     }
 
     void clear ( ) noexcept {
-        data.clear ( );
         key_map_one.clear ( );
         key_map_two.clear ( );
+        data.clear ( );
     }
 
-    [[nodiscard]] std::size_t size ( ) const noexcept { return key_map_one.size ( ); }
-    [[nodiscard]] bool empty ( ) const noexcept { return key_map_one.empty ( ); }
+    [[nodiscard]] std::size_t key_one_size ( ) const noexcept { return key_map_one.size ( ); }
+    [[nodiscard]] std::size_t key_two_size ( ) const noexcept { return key_map_two.size ( ); }
+    [[nodiscard]] std::size_t size ( ) const noexcept { return data.size ( ); }
+    [[nodiscard]] bool empty ( ) const noexcept { return data.empty ( ); }
 };
 
 int main ( ) {
