@@ -512,7 +512,7 @@ class alignas ( 64 ) bimap {
             return l_.two_it == r_.two_it;
         }
 
-        [[maybe_unused]] key_one_iterator & operator++ ( ) {
+        [[maybe_unused]] key_one_iterator & operator++ ( ) noexcept {
             while ( two_it_end != two_it ) {
                 if ( one_data == two_it->data )
                     break;
@@ -552,7 +552,7 @@ class alignas ( 64 ) bimap {
             return l_.two_it == r_.two_it;
         }
 
-        [[maybe_unused]] const_key_one_iterator & operator++ ( ) {
+        [[maybe_unused]] const_key_one_iterator & operator++ ( ) noexcept {
             while ( two_it_end != two_it ) {
                 if ( one_data == two_it->data )
                     break;
@@ -592,7 +592,7 @@ class alignas ( 64 ) bimap {
             return l_.one_it == r_.one_it;
         }
 
-        [[maybe_unused]] key_two_iterator & operator++ ( ) {
+        [[maybe_unused]] key_two_iterator & operator++ ( ) noexcept {
             while ( one_it_end != one_it ) {
                 if ( two_data == one_it->data )
                     break;
@@ -632,7 +632,7 @@ class alignas ( 64 ) bimap {
             return l_.one_it == r_.one_it;
         }
 
-        [[maybe_unused]] const_key_two_iterator & operator++ ( ) {
+        [[maybe_unused]] const_key_two_iterator & operator++ ( ) noexcept {
             while ( one_it_end != one_it ) {
                 if ( two_data == one_it->data )
                     break;
