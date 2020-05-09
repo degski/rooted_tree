@@ -508,10 +508,6 @@ class alignas ( 64 ) bimap {
             }
         }
 
-        [[nodiscard]] friend bool operator== ( key_one_iterator const & l_, key_one_iterator const & r_ ) noexcept {
-            return l_.two_it == r_.two_it;
-        }
-
         [[maybe_unused]] key_one_iterator & operator++ ( ) noexcept {
             while ( two_it_end != two_it ) {
                 if ( one_data == two_it->data )
@@ -546,10 +542,6 @@ class alignas ( 64 ) bimap {
                     ++two_it;
                 }
             }
-        }
-
-        [[nodiscard]] friend bool operator== ( const_key_one_iterator const & l_, const_key_one_iterator const & r_ ) noexcept {
-            return l_.two_it == r_.two_it;
         }
 
         [[maybe_unused]] const_key_one_iterator & operator++ ( ) noexcept {
@@ -588,10 +580,6 @@ class alignas ( 64 ) bimap {
             }
         }
 
-        [[nodiscard]] friend bool operator== ( key_two_iterator const & l_, key_two_iterator const & r_ ) noexcept {
-            return l_.one_it == r_.one_it;
-        }
-
         [[maybe_unused]] key_two_iterator & operator++ ( ) noexcept {
             while ( one_it_end != one_it ) {
                 if ( two_data == one_it->data )
@@ -628,10 +616,6 @@ class alignas ( 64 ) bimap {
             }
         }
 
-        [[nodiscard]] friend bool operator== ( const_key_two_iterator const & l_, const_key_two_iterator const & r_ ) noexcept {
-            return l_.one_it == r_.one_it;
-        }
-
         [[maybe_unused]] const_key_two_iterator & operator++ ( ) noexcept {
             while ( one_it_end != one_it ) {
                 if ( two_data == one_it->data )
@@ -645,6 +629,31 @@ class alignas ( 64 ) bimap {
         [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
     };
+
+    [[nodiscard]] friend bool operator== ( key_one_iterator const & l_, key_one_iterator const & r_ ) noexcept {
+        return l_.two_it == r_.two_it;
+    }
+    [[nodiscard]] friend bool operator== ( const_key_one_iterator const & l_, key_one_iterator const & r_ ) noexcept {
+        return l_.two_it == r_.two_it;
+    }
+    [[nodiscard]] friend bool operator== ( key_one_iterator const & l_, const_key_one_iterator const & r_ ) noexcept {
+        return l_.two_it == r_.two_it;
+    }
+    [[nodiscard]] friend bool operator== ( const_key_one_iterator const & l_, const_key_one_iterator const & r_ ) noexcept {
+        return l_.two_it == r_.two_it;
+    }
+    [[nodiscard]] friend bool operator== ( key_two_iterator const & l_, key_two_iterator const & r_ ) noexcept {
+        return l_.one_it == r_.one_it;
+    }
+    [[nodiscard]] friend bool operator== ( const_key_two_iterator const & l_, key_two_iterator const & r_ ) noexcept {
+        return l_.one_it == r_.one_it;
+    }
+    [[nodiscard]] friend bool operator== ( key_two_iterator const & l_, const_key_two_iterator const & r_ ) noexcept {
+        return l_.one_it == r_.one_it;
+    }
+    [[nodiscard]] friend bool operator== ( const_key_two_iterator const & l_, const_key_two_iterator const & r_ ) noexcept {
+        return l_.one_it == r_.one_it;
+    }
 
     void clear ( ) noexcept {
         data.clear ( );
