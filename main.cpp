@@ -523,7 +523,6 @@ class alignas ( 64 ) bimap {
             return *this;
         }
         [[nodiscard]] key_type_two operator* ( ) const noexcept { return two_it->key; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return two_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
     };
 
@@ -564,7 +563,6 @@ class alignas ( 64 ) bimap {
             return *this;
         }
         [[nodiscard]] key_type_two operator* ( ) const noexcept { return two_it->key; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return two_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
     };
 
@@ -605,7 +603,6 @@ class alignas ( 64 ) bimap {
             return *this;
         }
         [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return one_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
     };
 
@@ -646,7 +643,6 @@ class alignas ( 64 ) bimap {
             return *this;
         }
         [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return one_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
     };
 
