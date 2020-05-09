@@ -15,7 +15,7 @@
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// FITNESS FOR key_type_one PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -67,7 +67,7 @@ namespace ThreadID {
 } // namespace ThreadID
 
 namespace Rng {
-// A global instance of a C++ implementation of Chris Doty-Humphrey's Small Fast Chaotic Prng.
+// key_type_one global instance of a C++ implementation of Chris Doty-Humphrey's Small Fast Chaotic Prng.
 [[nodiscard]] inline sax::Rng & generator ( ) noexcept {
     if constexpr ( RANDOM ) {
         static thread_local sax::Rng generator ( sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ) );
@@ -310,52 +310,150 @@ void emplace_back_low_workload ( Type & vec_, int n_ ) {
         vec_.emplace_back ( i );
 }
 
-template<typename A, typename B>
-struct bimap {
+template<typename key_type_one, typename key_type_two, typename value_type>
+class alignas ( 128 ) bimap {
 
-    template<typename KeyType, typename ValueType>
-    struct pair {
-        using first_type  = KeyType;
-        using second_type = ValueType;
-        pair ( )          = default;
-        template<typename T1, typename T2>
-        pair ( T1 && key_, T2 && value_ ) : key ( std::forward<T1> ( key_ ) ), value ( std::forward<T2> ( value_ ) ) {}
-        KeyType key;
-        mutable ValueType value;
+    static_assert ( not std::is_same<key_type_one, key_type_two>::value, "types must be distinct" );
+
+    template<typename KT, typename PKT, typename PDT>
+    struct node {
+        node ( ) = default;
+        template<typename T1, typename T2, typename T3>
+        node ( T1 && key_, T2 && other_key_, T3 && data_pointer_ ) :
+            key ( std::forward<T1> ( key_ ) ), other_key_ptr ( std::forward<T2> ( other_key_ ) ),
+            pointer ( std::forward<T3> ( data_pointer_ ) ) {}
+        KT key;
+        mutable PKT other_key_ptr;
+        PDT * pointer;
     };
 
-    template<typename KeyType, typename ValueType>
+    template<typename KT, typename PKT, typename PDT>
     struct compare {
-        [[nodiscard]] bool operator( ) ( pair<KeyType, ValueType> const & l_, pair<KeyType, ValueType> const & r_ ) const noexcept {
+        [[nodiscard]] bool operator( ) ( node<KT, PKT, PDT> const & l_, node<KT, PKT, PDT> const & r_ ) const noexcept {
             return l_.key < r_.key;
         }
     };
 
-    template<typename KeyType, typename ValueType>
-    [[nodiscard]] friend bool operator== ( pair<KeyType, ValueType> const & l_, pair<KeyType, ValueType> const & r_ ) noexcept {
+    template<typename KT, typename PKT, typename PDT>
+    [[nodiscard]] friend bool operator== ( node<KT, PKT, PDT> const & l_, node<KT, PKT, PDT> const & r_ ) noexcept {
         return l_.key == r_.key;
     }
 
-    void insert ( A const & a_, B const & b_ ) {
-        auto it   = map_b.insert ( { b_, nullptr } ).first;
-        it->value = const_cast<A *> (
-            std::addressof ( map_a.insert ( { a_, const_cast<B *> ( std::addressof ( it->key ) ) } ).first->key ) );
+    template<typename T1, typename T2>
+    using map  = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>>;
+    using data = plf::colony<value_type>;
+
+    map<key_type_one, key_type_two> key_map_1;
+    map<key_type_two, key_type_one> key_map_2;
+    data values;
+
+    [[maybe_unused]] value_type & insert ( key_type_one const & k1_, key_type_two const & k2_, value_type * p_ ) {
+        auto it           = key_map_2.insert ( { k2_, nullptr, p_ } ).first;
+        it->other_key_ptr = const_cast<key_type_one *> ( std::addressof (
+            key_map_1.insert ( { k1_, const_cast<key_type_two *> ( std::addressof ( it->key ) ), p_ } ).first->key ) );
+        return *p_;
     }
 
-    std::set<pair<A, B *>, compare<A, B *>> map_a;
-    std::set<pair<B, A *>, compare<B, A *>> map_b;
+    public:
+    [[maybe_unused]] value_type & insert ( key_type_one const & k1_, key_type_two const & k2_, value_type && v_ ) {
+        return insert ( k1_, k2_, std::addressof ( *values.insert ( std::forward<value_type> ( v_ ) ) ) );
+    }
+    [[maybe_unused]] value_type & insert ( key_type_two const & k2_, key_type_one const & k1_, value_type && v_ ) {
+        return insert ( k1_, k2_, std::forward<value_type> ( v_ ) );
+    }
+    [[maybe_unused]] value_type & insert ( key_type_one const & k1_, key_type_two const & k2_, value_type const & v_ ) {
+        return insert ( k1_, k2_, std::addressof ( *values.insert ( v_ ) ) );
+    }
+    [[maybe_unused]] value_type & insert ( key_type_two const & k2_, key_type_one const & k1_, value_type const & v_ ) {
+        return insert ( k1_, k2_, v_ );
+    }
+
+    template<typename... Args>
+    [[maybe_unused]] value_type & emplace ( key_type_one const & k1_, key_type_two const & k2_, Args &&... v_ ) {
+        return insert ( k1_, k2_, std::addressof ( *values.emplace ( std::forward<Args> ( v_ )... ) ) );
+    }
+    template<typename... Args>
+    [[maybe_unused]] value_type & emplace ( key_type_two const & k2_, key_type_one const & k1_, Args &&... v_ ) {
+        return emplace ( k1_, k2_, std::forward<Args> ( v_ )... );
+    }
+
+    [[nodiscard]] value_type * find ( key_type_one const & k1_ ) const noexcept {
+        auto it = key_map_1.find ( { k1_, nullptr, nullptr } );
+        return key_map_1.end ( ) != it ? it->pointer : nullptr;
+    }
+    [[nodiscard]] value_type * find ( key_type_two const & k2_ ) const noexcept {
+        auto it = key_map_2.find ( { k2_, nullptr, nullptr } );
+        return key_map_2.end ( ) != it ? it->pointer : nullptr;
+    }
+
+    [[nodiscard]] value_type & find_existing ( key_type_one const & k1_ ) noexcept {
+        return *key_map_1.find ( { k1_, nullptr, nullptr } )->pointer;
+    }
+    [[nodiscard]] value_type & find_existing ( key_type_two const & k2_ ) noexcept {
+        return *key_map_2.find ( { k2_, nullptr, nullptr } )->pointer;
+    }
+
+    void erase ( key_type_one const * k1_ ) noexcept {
+        if ( k1_ ) {
+            auto it = key_map_1.find ( { *k1_, nullptr, nullptr } );
+            if ( key_map_1.end ( ) != it ) {
+                values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+                key_map_2.erase ( *it->value );
+                key_map_1.erase ( it );
+            }
+        }
+    }
+
+    void erase ( key_type_two const * k2_ ) noexcept {
+        if ( k2_ ) {
+            auto it = key_map_2.find ( { *k2_, nullptr, nullptr } );
+            if ( key_map_2.end ( ) != it ) {
+                values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+                key_map_1.erase ( *it->other_key_ptr );
+                key_map_2.erase ( it );
+            }
+        }
+    }
+
+    void erase_existing ( key_type_one const * k1_ ) noexcept {
+        auto it = key_map_1.find ( { *k1_, nullptr, nullptr } );
+        values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+        key_map_2.erase ( *it->other_key_ptr );
+        key_map_1.erase ( it );
+    }
+
+    void erase_existing ( key_type_two const * k2_ ) noexcept {
+        auto it = key_map_2.find ( { *k2_, nullptr, nullptr } );
+        values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+        key_map_1.erase ( *it->other_key_ptr );
+        key_map_2.erase ( it );
+    }
+
+    void clear ( ) noexcept {
+        values.clear ( );
+        key_map_1.clear ( );
+        key_map_2.clear ( );
+    }
+
+    [[nodiscard]] std::size_t size ( ) const noexcept { return key_map_1.size ( ); }
+    [[nodiscard]] bool empty ( ) const noexcept { return key_map_1.empty ( ); }
 };
 
 int main ( ) {
 
     // https://stackoverflow.com/a/21917041
 
-    bimap<int, int> m;
+    bimap<int, std::string, int> m;
 
-    int a = 6, b = 9;
+    int a         = 6;
+    std::string b = "hello";
 
-    m.insert ( a, b );
+    m.insert ( a, b, 4 );
 
+    std::cout << m.find ( 6 ) << nl;
+    // std::cout << *m.find ( b ) << nl;
+
+    std::cout << sizeof ( bimap<int, std::string, int> ) << nl;
     exit ( 0 );
 
     {
