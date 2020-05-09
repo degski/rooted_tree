@@ -418,38 +418,62 @@ class alignas ( 64 ) bimap {
 
     void erase ( key_type_one const * k1_ ) noexcept {
         if ( k1_ ) {
-            auto it = key_map_one.find ( { *k1_, nullptr, nullptr } );
-            if ( key_map_one.end ( ) != it ) {
-                data.erase ( data.get_iterator_from_pointer ( it->data ) );
-                key_map_two.erase ( *it->value );
-                key_map_one.erase ( it );
+            auto one_it = key_map_one.find ( { k1_, nullptr, nullptr } );
+            if ( key_map_one.end ( ) != one_it ) {
+                data.erase ( data.get_iterator_from_pointer ( one_it->data ) );
+                pointer one_data = one_it->data;
+                for ( auto two_it = key_map_two.begin ( ), two_end = key_map_two.end ( ); two_it != two_end; ) {
+                    if ( one_data == two_it->data )
+                        two_it = key_map_two.erase ( two_it );
+                    else
+                        ++two_it;
+                }
+                key_map_one.erase ( one_it );
             }
         }
     }
 
     void erase ( key_type_two const * k2_ ) noexcept {
         if ( k2_ ) {
-            auto it = key_map_two.find ( { *k2_, nullptr, nullptr } );
-            if ( key_map_two.end ( ) != it ) {
-                data.erase ( data.get_iterator_from_pointer ( it->data ) );
-                key_map_one.erase ( *it->other );
-                key_map_two.erase ( it );
+            auto two_it = key_map_two.find ( { k2_, nullptr, nullptr } );
+            if ( key_map_two.end ( ) != two_it ) {
+                data.erase ( data.get_iterator_from_pointer ( two_it->data ) );
+                pointer two_data = two_it->data;
+                for ( auto one_it = key_map_one.begin ( ), one_end = key_map_one.end ( ); one_it != one_end; ) {
+                    if ( two_data == one_it->data )
+                        one_it = key_map_one.erase ( one_it );
+                    else
+                        ++one_it;
+                }
+                key_map_two.erase ( two_it );
             }
         }
     }
 
     void erase_existing ( key_type_one const & k1_ ) noexcept {
-        auto it = key_map_one.find ( { k1_, nullptr, nullptr } );
-        data.erase ( data.get_iterator_from_pointer ( it->data ) );
-        key_map_two.erase ( *it->other );
-        key_map_one.erase ( it );
+        auto one_it = key_map_one.find ( { k1_, nullptr, nullptr } );
+        data.erase ( data.get_iterator_from_pointer ( one_it->data ) );
+        pointer one_data = one_it->data;
+        for ( auto two_it = key_map_two.begin ( ), two_end = key_map_two.end ( ); two_it != two_end; ) {
+            if ( one_data == two_it->data )
+                two_it = key_map_two.erase ( two_it );
+            else
+                ++two_it;
+        }
+        key_map_one.erase ( one_it );
     }
 
     void erase_existing ( key_type_two const & k2_ ) noexcept {
-        auto it = key_map_two.find ( { k2_, nullptr, nullptr } );
-        data.erase ( data.get_iterator_from_pointer ( it->data ) );
-        key_map_one.erase ( *it->other );
-        key_map_two.erase ( it );
+        auto two_it = key_map_two.find ( { k2_, nullptr, nullptr } );
+        data.erase ( data.get_iterator_from_pointer ( two_it->data ) );
+        pointer two_data = two_it->data;
+        for ( auto one_it = key_map_one.begin ( ), one_end = key_map_one.end ( ); one_it != one_end; ) {
+            if ( two_data == one_it->data )
+                one_it = key_map_one.erase ( one_it );
+            else
+                ++one_it;
+        }
+        key_map_two.erase ( two_it );
     }
 
     [[nodiscard]] const_iterator begin ( ) const noexcept { return data.begin ( ); }
