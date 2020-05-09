@@ -351,8 +351,11 @@ class alignas ( 64 ) bimap {
     template<typename T1, typename T2>
     using map = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>>;
 
-    map<key_type_one, key_type_two> key_map_one;
-    map<key_type_two, key_type_one> key_map_two;
+    using map_one_type = map<key_type_one, key_type_two>;
+    using map_two_type = map<key_type_two, key_type_one>;
+
+    map_one_type key_map_one;
+    map_two_type key_map_two;
 
     value_type_colony data;
 
@@ -482,6 +485,170 @@ class alignas ( 64 ) bimap {
     [[nodiscard]] const_iterator end ( ) const noexcept { return data.end ( ); }
     [[nodiscard]] const_iterator cend ( ) const noexcept { return data.cend ( ); }
     [[nodiscard]] iterator end ( ) noexcept { return data.end ( ); }
+
+    class key_one_iterator {
+
+        friend class bimap;
+
+        using iterator = typename map_two_type::iterator;
+
+        bimap & map;
+        pointer one_data;
+        iterator two_it, two_it_end;
+
+        key_one_iterator ( bimap & map_, key_type_one const & k1_ ) noexcept :
+            map ( map_ ), one_data ( map.key_map_one.find ( { k1_, nullptr, nullptr } )->data ),
+            two_it ( map.key_map_two.begin ( ) ), two_it_end ( map.key_map_two.end ( ) ) {
+            while ( two_it_end != two_it ) {
+                if ( one_data == two_it->data )
+                    break;
+                else {
+                    ++two_it;
+                }
+            }
+        }
+
+        [[nodiscard]] friend bool operator== ( key_one_iterator const & l_, key_one_iterator const & r_ ) noexcept {
+            return l_.two_it == r_.two_it;
+        }
+
+        [[maybe_unused]] key_one_iterator & operator++ ( ) {
+            while ( two_it_end != two_it ) {
+                if ( one_data == two_it->data )
+                    break;
+                else {
+                    ++two_it;
+                }
+            }
+            return *this;
+        }
+        [[nodiscard]] reference operator* ( ) const noexcept { return *two_it; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( *two_it ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
+    };
+
+    class const_key_one_iterator {
+
+        friend class bimap;
+
+        using const_iterator = typename map_two_type::const_iterator;
+
+        bimap const & map;
+        const_pointer one_data;
+        const_iterator two_it, two_it_end;
+
+        const_key_one_iterator ( bimap const & map_, key_type_one const & k1_ ) noexcept :
+            map ( map_ ), one_data ( map.key_map_one.find ( { k1_, nullptr, nullptr } )->data ),
+            two_it ( map.key_map_two.begin ( ) ), two_it_end ( map.key_map_two.end ( ) ) {
+            while ( two_it_end != two_it ) {
+                if ( one_data == two_it->data )
+                    break;
+                else {
+                    ++two_it;
+                }
+            }
+        }
+
+        [[nodiscard]] friend bool operator== ( const_key_one_iterator const & l_, const_key_one_iterator const & r_ ) noexcept {
+            return l_.two_it == r_.two_it;
+        }
+
+        [[maybe_unused]] const_key_one_iterator & operator++ ( ) {
+            while ( two_it_end != two_it ) {
+                if ( one_data == two_it->data )
+                    break;
+                else {
+                    ++two_it;
+                }
+            }
+            return *this;
+        }
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return *two_it; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( *two_it ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
+    };
+
+    class key_two_iterator {
+
+        friend class bimap;
+
+        using iterator = typename map_one_type::iterator;
+
+        bimap & map;
+        pointer two_data;
+        iterator one_it, one_it_end;
+
+        key_two_iterator ( bimap & map_, key_type_two const & k1_ ) noexcept :
+            map ( map_ ), two_data ( map.key_map_two.find ( { k1_, nullptr, nullptr } )->data ),
+            one_it ( map.key_map_one.begin ( ) ), one_it_end ( map.key_map_one.end ( ) ) {
+            while ( one_it_end != one_it ) {
+                if ( two_data == one_it->data )
+                    break;
+                else {
+                    ++one_it;
+                }
+            }
+        }
+
+        [[nodiscard]] friend bool operator== ( key_two_iterator const & l_, key_two_iterator const & r_ ) noexcept {
+            return l_.one_it == r_.one_it;
+        }
+
+        [[maybe_unused]] key_two_iterator & operator++ ( ) {
+            while ( one_it_end != one_it ) {
+                if ( two_data == one_it->data )
+                    break;
+                else {
+                    ++one_it;
+                }
+            }
+            return *this;
+        }
+        [[nodiscard]] reference operator* ( ) const noexcept { return *one_it; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( *one_it ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
+    };
+
+    class const_key_two_iterator {
+
+        friend class bimap;
+
+        using const_iterator = typename map_one_type::const_iterator;
+
+        bimap const & map;
+        const_pointer two_data;
+        const_iterator one_it, one_it_end;
+
+        const_key_two_iterator ( bimap const & map_, key_type_two const & k1_ ) noexcept :
+            map ( map_ ), two_data ( map.key_map_two.find ( { k1_, nullptr, nullptr } )->data ),
+            one_it ( map.key_map_one.begin ( ) ), one_it_end ( map.key_map_one.end ( ) ) {
+            while ( one_it_end != one_it ) {
+                if ( two_data == one_it->data )
+                    break;
+                else {
+                    ++one_it;
+                }
+            }
+        }
+
+        [[nodiscard]] friend bool operator== ( const_key_two_iterator const & l_, const_key_two_iterator const & r_ ) noexcept {
+            return l_.one_it == r_.one_it;
+        }
+
+        [[maybe_unused]] const_key_two_iterator & operator++ ( ) {
+            while ( one_it_end != one_it ) {
+                if ( two_data == one_it->data )
+                    break;
+                else {
+                    ++one_it;
+                }
+            }
+            return *this;
+        }
+        [[nodiscard]] const_reference operator* ( ) const noexcept { return *one_it; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( *one_it ); }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
+    };
 
     void clear ( ) noexcept {
         data.clear ( );
