@@ -522,8 +522,8 @@ class alignas ( 64 ) bimap {
             }
             return *this;
         }
-        [[nodiscard]] reference operator* ( ) const noexcept { return *two_it; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( *two_it ); }
+        [[nodiscard]] key_type_two operator* ( ) const noexcept { return two_it->key; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return two_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
     };
 
@@ -563,8 +563,8 @@ class alignas ( 64 ) bimap {
             }
             return *this;
         }
-        [[nodiscard]] const_reference operator* ( ) const noexcept { return *two_it; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( *two_it ); }
+        [[nodiscard]] key_type_two operator* ( ) const noexcept { return two_it->key; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return two_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
     };
 
@@ -604,8 +604,8 @@ class alignas ( 64 ) bimap {
             }
             return *this;
         }
-        [[nodiscard]] reference operator* ( ) const noexcept { return *one_it; }
-        [[nodiscard]] pointer operator-> ( ) const noexcept { return std::addressof ( *one_it ); }
+        [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
+        [[nodiscard]] pointer operator-> ( ) const noexcept { return one_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
     };
 
@@ -645,8 +645,8 @@ class alignas ( 64 ) bimap {
             }
             return *this;
         }
-        [[nodiscard]] const_reference operator* ( ) const noexcept { return *one_it; }
-        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return std::addressof ( *one_it ); }
+        [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
+        [[nodiscard]] const_pointer operator-> ( ) const noexcept { return one_it->pointer; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
     };
 
