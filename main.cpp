@@ -310,17 +310,16 @@ void emplace_back_low_workload ( Type & vec_, int n_ ) {
         vec_.emplace_back ( i );
 }
 
-template<typename key_type_one, typename key_type_two, typename value_type>
-class alignas ( 128 ) bimap {
+template<typename key_type_one, typename key_type_two, typename type>
+class alignas ( 64 ) bimap {
 
     static_assert ( not std::is_same<key_type_one, key_type_two>::value, "types must be distinct" );
 
     template<typename KT, typename PKT, typename PDT>
     struct node {
-        node ( ) = default;
         template<typename T1, typename T2, typename T3>
-        node ( T1 && key_, T2 && other_key_, T3 && data_pointer_ ) :
-            key ( std::forward<T1> ( key_ ) ), other_key_ptr ( std::forward<T2> ( other_key_ ) ),
+        node ( T1 && key_, T2 && other_key_ptr_, T3 && data_pointer_ ) :
+            key ( std::forward<T1> ( key_ ) ), other_key_ptr ( std::forward<T2> ( other_key_ptr_ ) ),
             pointer ( std::forward<T3> ( data_pointer_ ) ) {}
         KT key;
         mutable PKT other_key_ptr;
@@ -339,13 +338,16 @@ class alignas ( 128 ) bimap {
         return l_.key == r_.key;
     }
 
+    public:
+    using value_type        = type;
+    using value_type_colony = plf::colony<value_type>;
+
+    private:
     template<typename T1, typename T2>
-    using map  = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>>;
-    using data = plf::colony<value_type>;
+    using map = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>>;
 
     map<key_type_one, key_type_two> key_map_1;
     map<key_type_two, key_type_one> key_map_2;
-    data values;
 
     [[maybe_unused]] value_type & insert ( key_type_one const & k1_, key_type_two const & k2_, value_type * p_ ) {
         auto it           = key_map_2.insert ( { k2_, nullptr, p_ } ).first;
@@ -355,14 +357,16 @@ class alignas ( 128 ) bimap {
     }
 
     public:
+    value_type_colony data;
+
     [[maybe_unused]] value_type & insert ( key_type_one const & k1_, key_type_two const & k2_, value_type && v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *values.insert ( std::forward<value_type> ( v_ ) ) ) );
+        return insert ( k1_, k2_, std::addressof ( *data.insert ( std::forward<value_type> ( v_ ) ) ) );
     }
     [[maybe_unused]] value_type & insert ( key_type_two const & k2_, key_type_one const & k1_, value_type && v_ ) {
         return insert ( k1_, k2_, std::forward<value_type> ( v_ ) );
     }
     [[maybe_unused]] value_type & insert ( key_type_one const & k1_, key_type_two const & k2_, value_type const & v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *values.insert ( v_ ) ) );
+        return insert ( k1_, k2_, std::addressof ( *data.insert ( v_ ) ) );
     }
     [[maybe_unused]] value_type & insert ( key_type_two const & k2_, key_type_one const & k1_, value_type const & v_ ) {
         return insert ( k1_, k2_, v_ );
@@ -370,18 +374,26 @@ class alignas ( 128 ) bimap {
 
     template<typename... Args>
     [[maybe_unused]] value_type & emplace ( key_type_one const & k1_, key_type_two const & k2_, Args &&... v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *values.emplace ( std::forward<Args> ( v_ )... ) ) );
+        return insert ( k1_, k2_, std::addressof ( *data.emplace ( std::forward<Args> ( v_ )... ) ) );
     }
     template<typename... Args>
     [[maybe_unused]] value_type & emplace ( key_type_two const & k2_, key_type_one const & k1_, Args &&... v_ ) {
         return emplace ( k1_, k2_, std::forward<Args> ( v_ )... );
     }
 
-    [[nodiscard]] value_type * find ( key_type_one const & k1_ ) const noexcept {
+    [[nodiscard]] value_type * find ( key_type_one const & k1_ ) noexcept {
         auto it = key_map_1.find ( { k1_, nullptr, nullptr } );
         return key_map_1.end ( ) != it ? it->pointer : nullptr;
     }
-    [[nodiscard]] value_type * find ( key_type_two const & k2_ ) const noexcept {
+    [[nodiscard]] value_type * find ( key_type_two const & k2_ ) noexcept {
+        auto it = key_map_2.find ( { k2_, nullptr, nullptr } );
+        return key_map_2.end ( ) != it ? it->pointer : nullptr;
+    }
+    [[nodiscard]] value_type const * find ( key_type_one const & k1_ ) const noexcept {
+        auto it = key_map_1.find ( { k1_, nullptr, nullptr } );
+        return key_map_1.end ( ) != it ? it->pointer : nullptr;
+    }
+    [[nodiscard]] value_type const * find ( key_type_two const & k2_ ) const noexcept {
         auto it = key_map_2.find ( { k2_, nullptr, nullptr } );
         return key_map_2.end ( ) != it ? it->pointer : nullptr;
     }
@@ -392,12 +404,18 @@ class alignas ( 128 ) bimap {
     [[nodiscard]] value_type & find_existing ( key_type_two const & k2_ ) noexcept {
         return *key_map_2.find ( { k2_, nullptr, nullptr } )->pointer;
     }
+    [[nodiscard]] value_type const & find_existing ( key_type_one const & k1_ ) const noexcept {
+        return *key_map_1.find ( { k1_, nullptr, nullptr } )->pointer;
+    }
+    [[nodiscard]] value_type const & find_existing ( key_type_two const & k2_ ) const noexcept {
+        return *key_map_2.find ( { k2_, nullptr, nullptr } )->pointer;
+    }
 
     void erase ( key_type_one const * k1_ ) noexcept {
         if ( k1_ ) {
             auto it = key_map_1.find ( { *k1_, nullptr, nullptr } );
             if ( key_map_1.end ( ) != it ) {
-                values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+                data.erase ( data.get_iterator_from_pointer ( it->pointer ) );
                 key_map_2.erase ( *it->value );
                 key_map_1.erase ( it );
             }
@@ -408,29 +426,29 @@ class alignas ( 128 ) bimap {
         if ( k2_ ) {
             auto it = key_map_2.find ( { *k2_, nullptr, nullptr } );
             if ( key_map_2.end ( ) != it ) {
-                values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+                data.erase ( data.get_iterator_from_pointer ( it->pointer ) );
                 key_map_1.erase ( *it->other_key_ptr );
                 key_map_2.erase ( it );
             }
         }
     }
 
-    void erase_existing ( key_type_one const * k1_ ) noexcept {
-        auto it = key_map_1.find ( { *k1_, nullptr, nullptr } );
-        values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+    void erase_existing ( key_type_one const & k1_ ) noexcept {
+        auto it = key_map_1.find ( { k1_, nullptr, nullptr } );
+        data.erase ( data.get_iterator_from_pointer ( it->pointer ) );
         key_map_2.erase ( *it->other_key_ptr );
         key_map_1.erase ( it );
     }
 
-    void erase_existing ( key_type_two const * k2_ ) noexcept {
-        auto it = key_map_2.find ( { *k2_, nullptr, nullptr } );
-        values.erase ( values.get_iterator_from_pointer ( it->pointer ) );
+    void erase_existing ( key_type_two const & k2_ ) noexcept {
+        auto it = key_map_2.find ( { k2_, nullptr, nullptr } );
+        data.erase ( data.get_iterator_from_pointer ( it->pointer ) );
         key_map_1.erase ( *it->other_key_ptr );
         key_map_2.erase ( it );
     }
 
     void clear ( ) noexcept {
-        values.clear ( );
+        data.clear ( );
         key_map_1.clear ( );
         key_map_2.clear ( );
     }
