@@ -316,27 +316,31 @@ class alignas ( 64 ) bimap {
     static_assert ( not std::is_same<key_type_one, key_type_two>::value, "types must be distinct" );
 
     template<typename KT, typename PKT, typename PDT>
-    struct node {
+    struct key_node {
         KT key;
-        mutable PKT other;
-        PDT * data;
+        mutable PKT * other;
+        PDT * kpdata;
     };
 
-    template<typename KT, typename PKT, typename PDT>
+    template<typename KN>
     struct compare {
-        [[nodiscard]] bool operator( ) ( node<KT, PKT, PDT> const & l_, node<KT, PKT, PDT> const & r_ ) const noexcept {
-            return l_.key < r_.key;
-        }
+        [[nodiscard]] bool operator( ) ( KN const & l_, KN const & r_ ) const noexcept { return l_.key < r_.key; }
     };
-
-    template<typename KT, typename PKT, typename PDT>
-    [[nodiscard]] friend bool operator== ( node<KT, PKT, PDT> const & l_, node<KT, PKT, PDT> const & r_ ) noexcept {
+    /*
+    template<typename KN>
+    [[nodiscard]] bool operator== ( KN const & l_, KN const & r_ ) noexcept {
         return l_.key == r_.key;
     }
+    */
+    template<typename PKT1, typename PKT2, typename DT>
+    struct data_node {
+        PKT1 * one_last = nullptr;
+        PKT2 * two_last = nullptr;
+        DT ndata;
+    };
 
     public:
-    using value_type        = type;
-    using value_type_colony = plf::colony<value_type, allocator>;
+    using value_type = type;
 
     using pointer         = value_type *;
     using const_pointer   = value_type const *;
@@ -344,89 +348,104 @@ class alignas ( 64 ) bimap {
     using const_reference = value_type const &;
     using rv_reference    = value_type &&;
 
-    using iterator       = typename value_type_colony::iterator;
-    using const_iterator = typename value_type_colony::const_iterator;
+    using key_one_ref = key_type_one const &;
+    using key_two_ref = key_type_two const &;
 
     private:
-    template<typename T1, typename T2>
-    using map = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>,
-                         typename allocator::template rebind<node<T1, T2 *, value_type>>::other>;
+    using node = data_node<key_type_one, key_type_two, value_type>;
 
-    using map_one_type = map<key_type_one, key_type_two>;
-    using map_two_type = map<key_type_two, key_type_one>;
+    using key_one_node = key_node<key_type_one, key_type_two, node>;
+    using key_two_node = key_node<key_type_two, key_type_one, node>;
+
+    template<typename KN>
+    using key_node_set = std::set<KN, compare<KN>, typename allocator::template rebind<KN>::other>;
+
+    using map_one_type = key_node_set<key_one_node>;
+    using map_two_type = key_node_set<key_two_node>;
 
     map_one_type key_map_one;
     map_two_type key_map_two;
 
-    value_type_colony data;
+    public:
+    using colony_value_type = plf::colony<node, typename allocator::template rebind<node>::other>;
+    using iterator          = typename colony_value_type::iterator;
+    using const_iterator    = typename colony_value_type::const_iterator;
 
-    [[maybe_unused]] reference insert ( key_type_one const & k1_, key_type_two const & k2_, pointer p_ ) {
-        auto two_it   = key_map_two.insert ( { k2_, nullptr, p_ } ).first;
-        two_it->other = const_cast<key_type_one *> ( std::addressof (
-            key_map_one.insert ( { k1_, const_cast<key_type_two *> ( std::addressof ( two_it->key ) ), p_ } ).first->key ) );
-        return *p_;
+    colony_value_type data;
+
+    template<typename KT>
+    KT * key_addressof ( KT const & k_ ) const noexcept {
+        return const_cast<KT *> ( std::addressof ( k_ ) );
+    }
+
+    [[maybe_unused]] reference insert ( key_type_one k1_, key_type_two k2_, node * p_ ) {
+        auto two_it = key_map_two.insert ( { std::move ( k2_ ), nullptr, p_ } ).first;
+        two_it->other =
+            key_addressof ( key_map_one.insert ( { std::move ( k1_ ), key_addressof ( two_it->key ), p_ } ).first->key );
+        return p_->ndata;
     }
 
     public:
-    [[maybe_unused]] reference insert ( key_type_one const & k1_, key_type_two const & k2_, rv_reference v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *data.insert ( std::forward<value_type> ( v_ ) ) ) );
+    [[maybe_unused]] reference insert ( key_one_ref k1_, key_two_ref k2_, rv_reference v_ ) {
+        return insert ( k1_, k2_,
+                        std::addressof ( *data.insert ( { key_addressof ( k1_ ), key_addressof ( k2_ ), std::move ( v_ ) } ) ) );
     }
-    [[maybe_unused]] reference insert ( key_type_two const & k2_, key_type_one const & k1_, rv_reference v_ ) {
-        return insert ( k1_, k2_, std::forward<value_type> ( v_ ) );
+    [[maybe_unused]] reference insert ( key_two_ref k2_, key_one_ref k1_, rv_reference v_ ) {
+        return insert ( k1_, k2_, std::move ( v_ ) );
     }
-    [[maybe_unused]] reference insert ( key_type_one const & k1_, key_type_two const & k2_, const_reference v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *data.insert ( v_ ) ) );
+    [[maybe_unused]] reference insert ( key_one_ref k1_, key_two_ref k2_, const_reference v_ ) {
+        return insert ( k1_, k2_, std::addressof ( *data.insert ( { key_addressof ( k1_ ), key_addressof ( k2_ ), v_ } ) ) );
     }
-    [[maybe_unused]] reference insert ( key_type_two const & k2_, key_type_one const & k1_, const_reference v_ ) {
-        return insert ( k1_, k2_, v_ );
-    }
+    [[maybe_unused]] reference insert ( key_two_ref k2_, key_one_ref k1_, const_reference v_ ) { return insert ( k1_, k2_, v_ ); }
 
     template<typename... Args>
-    [[maybe_unused]] reference emplace ( key_type_one const & k1_, key_type_two const & k2_, Args &&... v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *data.emplace ( std::forward<Args> ( v_ )... ) ) );
+    [[maybe_unused]] reference emplace ( key_one_ref k1_, key_two_ref k2_, Args &&... v_ ) {
+        return insert (
+            k1_, k2_,
+            std::addressof ( *data.emplace ( { key_addressof ( k1_ ), key_addressof ( k2_ ), std::forward<Args> ( v_ )... } ) ) );
     }
     template<typename... Args>
-    [[maybe_unused]] reference emplace ( key_type_two const & k2_, key_type_one const & k1_, Args &&... v_ ) {
+    [[maybe_unused]] reference emplace ( key_two_ref k2_, key_one_ref k1_, Args &&... v_ ) {
         return emplace ( k1_, k2_, std::forward<Args> ( v_ )... );
     }
 
-    [[nodiscard]] pointer find ( key_type_one const & k1_ ) noexcept {
+    [[nodiscard]] pointer find ( key_one_ref k1_ ) noexcept {
         auto it = key_map_one.find ( { k1_, nullptr, nullptr } );
-        return key_map_one.end ( ) != it ? it->data : nullptr;
+        return key_map_one.end ( ) != it ? std::addressof ( it->kpdata->ndata ) : nullptr;
     }
-    [[nodiscard]] pointer find ( key_type_two const & k2_ ) noexcept {
+    [[nodiscard]] pointer find ( key_two_ref k2_ ) noexcept {
         auto it = key_map_two.find ( { k2_, nullptr, nullptr } );
-        return key_map_two.end ( ) != it ? it->data : nullptr;
+        return key_map_two.end ( ) != it ? std::addressof ( it->kpdata->ndata ) : nullptr;
     }
-    [[nodiscard]] const_pointer find ( key_type_one const & k1_ ) const noexcept {
+    [[nodiscard]] const_pointer find ( key_one_ref k1_ ) const noexcept {
         auto it = key_map_one.find ( { k1_, nullptr, nullptr } );
-        return key_map_one.end ( ) != it ? it->data : nullptr;
+        return key_map_one.end ( ) != it ? std::addressof ( it->kpdata->ndata ) : nullptr;
     }
-    [[nodiscard]] const_pointer find ( key_type_two const & k2_ ) const noexcept {
+    [[nodiscard]] const_pointer find ( key_two_ref k2_ ) const noexcept {
         auto it = key_map_two.find ( { k2_, nullptr, nullptr } );
-        return key_map_two.end ( ) != it ? it->data : nullptr;
+        return key_map_two.end ( ) != it ? std::addressof ( it->kpdata->ndata ) : nullptr;
     }
 
-    [[nodiscard]] reference find_existing ( key_type_one const & k1_ ) noexcept {
-        return *key_map_one.find ( { k1_, nullptr, nullptr } )->data;
+    [[nodiscard]] reference find_existing ( key_one_ref k1_ ) noexcept {
+        return *key_map_one.find ( { k1_, nullptr, nullptr } )->kpdata->ndata;
     }
-    [[nodiscard]] reference find_existing ( key_type_two const & k2_ ) noexcept {
-        return *key_map_two.find ( { k2_, nullptr, nullptr } )->data;
+    [[nodiscard]] reference find_existing ( key_two_ref k2_ ) noexcept {
+        return *key_map_two.find ( { k2_, nullptr, nullptr } )->kpdata->ndata;
     }
-    [[nodiscard]] const_reference find_existing ( key_type_one const & k1_ ) const noexcept {
-        return *key_map_one.find ( { k1_, nullptr, nullptr } )->data;
+    [[nodiscard]] const_reference find_existing ( key_one_ref k1_ ) const noexcept {
+        return *key_map_one.find ( { k1_, nullptr, nullptr } )->kpdata->ndata;
     }
-    [[nodiscard]] const_reference find_existing ( key_type_two const & k2_ ) const noexcept {
-        return *key_map_two.find ( { k2_, nullptr, nullptr } )->data;
+    [[nodiscard]] const_reference find_existing ( key_two_ref k2_ ) const noexcept {
+        return *key_map_two.find ( { k2_, nullptr, nullptr } )->kpdata->ndata;
     }
 
     void erase ( key_type_one const * k1_ ) noexcept {
         if ( k1_ ) {
             auto one_it = key_map_one.find ( { *k1_, nullptr, nullptr } );
             if ( key_map_one.end ( ) != one_it ) {
-                pointer one_data = one_it->data;
+                pointer one_data = one_it->kpdata;
                 for ( auto two_it = key_map_two.begin ( ), two_end = key_map_two.end ( ); two_it != two_end; ) {
-                    if ( one_data == two_it->data )
+                    if ( one_data == two_it->kpdata )
                         two_it = key_map_two.erase ( two_it );
                     else
                         ++two_it;
@@ -441,9 +460,9 @@ class alignas ( 64 ) bimap {
         if ( k2_ ) {
             auto two_it = key_map_two.find ( { *k2_, nullptr, nullptr } );
             if ( key_map_two.end ( ) != two_it ) {
-                pointer two_data = two_it->data;
+                pointer two_data = two_it->kpdata;
                 for ( auto one_it = key_map_one.begin ( ), one_end = key_map_one.end ( ); one_it != one_end; ) {
-                    if ( two_data == one_it->data )
+                    if ( two_data == one_it->kpdata )
                         one_it = key_map_one.erase ( one_it );
                     else
                         ++one_it;
@@ -454,11 +473,11 @@ class alignas ( 64 ) bimap {
         }
     }
 
-    void erase_existing ( key_type_one const & k1_ ) noexcept {
+    void erase_existing ( key_one_ref k1_ ) noexcept {
         auto one_it      = key_map_one.find ( { k1_, nullptr, nullptr } );
-        pointer one_data = one_it->data;
+        pointer one_data = one_it->kpdata;
         for ( auto two_it = key_map_two.begin ( ), two_end = key_map_two.end ( ); two_it != two_end; ) {
-            if ( one_data == two_it->data )
+            if ( one_data == two_it->kpdata )
                 two_it = key_map_two.erase ( two_it );
             else
                 ++two_it;
@@ -467,11 +486,11 @@ class alignas ( 64 ) bimap {
         data.erase ( data.get_iterator_from_pointer ( one_data ) );
     }
 
-    void erase_existing ( key_type_two const & k2_ ) noexcept {
+    void erase_existing ( key_two_ref k2_ ) noexcept {
         auto two_it      = key_map_two.find ( { k2_, nullptr, nullptr } );
-        pointer two_data = two_it->data;
+        pointer two_data = two_it->kpdata;
         for ( auto one_it = key_map_one.begin ( ), one_end = key_map_one.end ( ); one_it != one_end; ) {
-            if ( two_data == one_it->data )
+            if ( two_data == one_it->kpdata )
                 one_it = key_map_one.erase ( one_it );
             else
                 ++one_it;
@@ -497,7 +516,7 @@ class alignas ( 64 ) bimap {
         pointer one_data;
         iterator two_it, two_end;
 
-        key_one_iterator ( bimap & map_, key_type_one const & k1_ ) noexcept :
+        key_one_iterator ( bimap & map_, key_one_ref k1_ ) noexcept :
             map ( map_ ), one_data ( map.key_map_one.find ( { k1_, nullptr, nullptr } )->data ),
             two_it ( map.key_map_two.begin ( ) ), two_end ( map.key_map_two.end ( ) ) {
             while ( two_end != two_it ) {
@@ -530,7 +549,7 @@ class alignas ( 64 ) bimap {
         const_pointer one_data;
         const_iterator two_it, two_end;
 
-        const_key_one_iterator ( bimap const & map_, key_type_one const & k1_ ) noexcept :
+        const_key_one_iterator ( bimap const & map_, key_one_ref k1_ ) noexcept :
             map ( map_ ), one_data ( map.key_map_one.find ( { k1_, nullptr, nullptr } )->data ),
             two_it ( map.key_map_two.begin ( ) ), two_end ( map.key_map_two.end ( ) ) {
             while ( two_end != two_it ) {
@@ -563,7 +582,7 @@ class alignas ( 64 ) bimap {
         pointer two_data;
         iterator one_it, one_end;
 
-        key_two_iterator ( bimap & map_, key_type_two const & k1_ ) noexcept :
+        key_two_iterator ( bimap & map_, key_two_ref k1_ ) noexcept :
             map ( map_ ), two_data ( map.key_map_two.find ( { k1_, nullptr, nullptr } )->data ),
             one_it ( map.key_map_one.begin ( ) ), one_end ( map.key_map_one.end ( ) ) {
             while ( one_end != one_it ) {
@@ -596,7 +615,7 @@ class alignas ( 64 ) bimap {
         const_pointer two_data;
         const_iterator one_it, one_end;
 
-        const_key_two_iterator ( bimap const & map_, key_type_two const & k1_ ) noexcept :
+        const_key_two_iterator ( bimap const & map_, key_two_ref k1_ ) noexcept :
             map ( map_ ), two_data ( map.key_map_two.find ( { k1_, nullptr, nullptr } )->data ),
             one_it ( map.key_map_one.begin ( ) ), one_end ( map.key_map_one.end ( ) ) {
             while ( one_end != one_it ) {
@@ -660,17 +679,15 @@ int main ( ) {
 
     // https://stackoverflow.com/a/21917041
 
-    bimap<int, std::string, int> m;
+    bimap<std::uint64_t, std::string, Bar> m;
 
-    int a         = 6;
-    std::string b = "hello";
+    std::uint64_t a = 6ull;
+    std::string b   = "hello";
 
-    m.insert ( a, b, 4 );
+    m.insert ( a, b, Bar{ 7 } );
 
-    std::cout << m.find ( 6 ) << nl;
-    // std::cout << *m.find ( b ) << nl;
+    std::cout << m.find ( 6ull ) << nl;
 
-    std::cout << sizeof ( bimap<int, std::string, int> ) << nl;
     exit ( 0 );
 
     {
