@@ -495,12 +495,12 @@ class alignas ( 64 ) bimap {
 
         bimap & map;
         pointer one_data;
-        iterator two_it, two_it_end;
+        iterator two_it, two_end;
 
         key_one_iterator ( bimap & map_, key_type_one const & k1_ ) noexcept :
             map ( map_ ), one_data ( map.key_map_one.find ( { k1_, nullptr, nullptr } )->data ),
-            two_it ( map.key_map_two.begin ( ) ), two_it_end ( map.key_map_two.end ( ) ) {
-            while ( two_it_end != two_it ) {
+            two_it ( map.key_map_two.begin ( ) ), two_end ( map.key_map_two.end ( ) ) {
+            while ( two_end != two_it ) {
                 if ( one_data == two_it->data )
                     break;
                 else
@@ -512,12 +512,12 @@ class alignas ( 64 ) bimap {
             do
                 if ( one_data == ++two_it->data )
                     break;
-            while ( two_it_end != two_it );
+            while ( two_end != two_it );
             return *this;
         }
         [[maybe_unused]] key_one_iterator & operator++ ( int ) noexcept { return this->operator++ ( ); }
         [[nodiscard]] key_type_two operator* ( ) const noexcept { return two_it->key; }
-        [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return two_end != two_it; }
     };
 
     class const_key_one_iterator {
@@ -528,12 +528,12 @@ class alignas ( 64 ) bimap {
 
         bimap const & map;
         const_pointer one_data;
-        const_iterator two_it, two_it_end;
+        const_iterator two_it, two_end;
 
         const_key_one_iterator ( bimap const & map_, key_type_one const & k1_ ) noexcept :
             map ( map_ ), one_data ( map.key_map_one.find ( { k1_, nullptr, nullptr } )->data ),
-            two_it ( map.key_map_two.begin ( ) ), two_it_end ( map.key_map_two.end ( ) ) {
-            while ( two_it_end != two_it ) {
+            two_it ( map.key_map_two.begin ( ) ), two_end ( map.key_map_two.end ( ) ) {
+            while ( two_end != two_it ) {
                 if ( one_data == two_it->data )
                     break;
                 else
@@ -545,12 +545,12 @@ class alignas ( 64 ) bimap {
             do
                 if ( one_data == ++two_it->data )
                     break;
-            while ( two_it_end != two_it );
+            while ( two_end != two_it );
             return *this;
         }
         [[maybe_unused]] const_key_one_iterator & operator++ ( int ) noexcept { return this->operator++ ( ); }
         [[nodiscard]] key_type_two operator* ( ) const noexcept { return two_it->key; }
-        [[nodiscard]] bool is_valid ( ) const noexcept { return two_it_end != two_it; }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return two_end != two_it; }
     };
 
     class key_two_iterator {
@@ -561,12 +561,12 @@ class alignas ( 64 ) bimap {
 
         bimap & map;
         pointer two_data;
-        iterator one_it, one_it_end;
+        iterator one_it, one_end;
 
         key_two_iterator ( bimap & map_, key_type_two const & k1_ ) noexcept :
             map ( map_ ), two_data ( map.key_map_two.find ( { k1_, nullptr, nullptr } )->data ),
-            one_it ( map.key_map_one.begin ( ) ), one_it_end ( map.key_map_one.end ( ) ) {
-            while ( one_it_end != one_it ) {
+            one_it ( map.key_map_one.begin ( ) ), one_end ( map.key_map_one.end ( ) ) {
+            while ( one_end != one_it ) {
                 if ( two_data == one_it->data )
                     break;
                 else
@@ -578,12 +578,12 @@ class alignas ( 64 ) bimap {
             do
                 if ( two_data == ++one_it->data )
                     break;
-            while ( one_it_end != one_it );
+            while ( one_end != one_it );
             return *this;
         }
         [[maybe_unused]] key_two_iterator & operator++ ( int ) noexcept { return this->operator++ ( ); }
         [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
-        [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return one_end != one_it; }
     };
 
     class const_key_two_iterator {
@@ -594,12 +594,12 @@ class alignas ( 64 ) bimap {
 
         bimap const & map;
         const_pointer two_data;
-        const_iterator one_it, one_it_end;
+        const_iterator one_it, one_end;
 
         const_key_two_iterator ( bimap const & map_, key_type_two const & k1_ ) noexcept :
             map ( map_ ), two_data ( map.key_map_two.find ( { k1_, nullptr, nullptr } )->data ),
-            one_it ( map.key_map_one.begin ( ) ), one_it_end ( map.key_map_one.end ( ) ) {
-            while ( one_it_end != one_it ) {
+            one_it ( map.key_map_one.begin ( ) ), one_end ( map.key_map_one.end ( ) ) {
+            while ( one_end != one_it ) {
                 if ( two_data == one_it->data )
                     break;
                 else
@@ -611,12 +611,12 @@ class alignas ( 64 ) bimap {
             do
                 if ( two_data == ++one_it->data )
                     break;
-            while ( one_it_end != one_it );
+            while ( one_end != one_it );
             return *this;
         }
         [[maybe_unused]] const_key_two_iterator & operator++ ( int ) noexcept { return this->operator++ ( ); }
         [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
-        [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
+        [[nodiscard]] bool is_valid ( ) const noexcept { return one_end != one_it; }
     };
 
     [[nodiscard]] friend bool operator== ( key_one_iterator const & l_, key_one_iterator const & r_ ) noexcept {
