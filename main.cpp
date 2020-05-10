@@ -710,16 +710,14 @@ template<typename T1, typename T2>
 using bridge_set_iterator = typename bridge_set<T1, T2>::iterator;
 
 template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_one_if ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
-    bs_.sort ( [ v ] ( auto l, auto r ) {
-        if ( v == l.one ) {
-            if ( v == r.one )
-                return l.two < r.two;
-            return true;
-        }
-        return false;
-    } );
+bridge_set_iterator<T1, T2> find_one ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
+    bs_.sort ( [ v ] ( auto l, auto r ) { return v == l.one ? v == r.one ? l.two < r.two : true : false; } );
     return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ v ] ( auto b ) { return v == b.one; } );
+}
+template<typename T1, typename T2>
+bridge_set_iterator<T1, T2> find_two ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
+    bs_.sort ( [ v ] ( auto l, auto r ) { return v == l.two ? v == r.two ? l.one < r.one : true : false; } );
+    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ v ] ( auto b ) { return v == b.two; } );
 }
 
 int main ( ) {
@@ -741,7 +739,9 @@ int main ( ) {
         std::cout << b << nl;
     std::cout << nl;
 
-    std::cout << *find_one_if ( s, 1 ) << nl << nl;
+    std::cout << *find_one ( s, 1 ) << nl << nl;
+
+    std::cout << *find_two ( s, 8 ) << nl << nl;
 
     for ( auto b : s )
         std::cout << b << nl;
