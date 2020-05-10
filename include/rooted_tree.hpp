@@ -156,12 +156,10 @@ struct rooted_tree_hook { // 16 bytes.
 #if USE_IO
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, rooted_tree_hook const & nid_ ) noexcept {
-        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value ) {
+        if constexpr ( std::is_same<typename Stream::char_type, wchar_t>::value )
             out_ << L'<' << nid_.up << L' ' << nid_.prev << L' ' << nid_.tail << L' ' << nid_.fan << L'>';
-        }
-        else {
+        else
             out_ << '<' << nid_.up << ' ' << nid_.prev << ' ' << nid_.tail << ' ' << nid_.fan << '>';
-        }
         return out_;
     }
 #endif

@@ -21,15 +21,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <gfx/timsort.hpp> // For faster sorting in plf::colony.
-
-#include "vm_backed.hpp"
-#include "rooted_tree.hpp"
-
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+
+// #include <gfx/timsort.hpp> // For faster sorting in plf::colony.
+
+#include <plf/plf_list.h>
+
+#include "vm_backed.hpp"
+#include "rooted_tree.hpp"
 
 #include <array>
 #include <atomic>
@@ -687,20 +689,64 @@ class alignas ( 64 ) bimap {
     [[nodiscard]] bool empty ( ) const noexcept { return data.empty ( ); }
 };
 
+template<typename T1, typename T2>
+struct bridge {
+    T1 one;
+    T2 two;
+
+    template<typename stream>
+    [[maybe_unused]] friend stream & operator<< ( stream & out_, bridge const & b_ ) noexcept {
+        if constexpr ( std::is_same<typename stream::char_type, wchar_t>::value )
+            out_ << L'<' << b_.one << L' ' << b_.two << L'>';
+        else
+            out_ << '<' << b_.one << ' ' << b_.two << '>';
+        return out_;
+    }
+};
+
+template<typename T1, typename T2>
+using bridge_set = plf::list<bridge<T1, T2>>;
+template<typename T1, typename T2>
+using bridge_set_iterator = typename bridge_set<T1, T2>::iterator;
+
+template<typename T1, typename T2>
+bridge_set_iterator<T1, T2> find_one_if ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
+    bs_.sort ( [ v ] ( auto l, auto r ) {
+        if ( v == l.one ) {
+            if ( v == r.one )
+                return l.two < r.two;
+            return true;
+        }
+        return false;
+    } );
+    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ v ] ( auto b ) { return v == b.one; } );
+}
+
 int main ( ) {
+    bridge_set<int, int> s;
 
-    plf::colony<std::pair<std::uint64_t, std::uint64_t>> p;
+    s.emplace_back ( bridge<int, int>{ 1, 3 } );
+    s.emplace_back ( bridge<int, int>{ 3, 1 } );
+    s.emplace_back ( bridge<int, int>{ 5, 8 } );
+    s.emplace_back ( bridge<int, int>{ 1, 7 } );
+    s.emplace_back ( bridge<int, int>{ 7, 8 } );
+    s.emplace_back ( bridge<int, int>{ 3, 5 } );
+    s.emplace_back ( bridge<int, int>{ 8, 2 } );
+    s.emplace_back ( bridge<int, int>{ 1, 1 } );
+    s.emplace_back ( bridge<int, int>{ 3, 2 } );
+    s.emplace_back ( bridge<int, int>{ 5, 3 } );
+    s.emplace_back ( bridge<int, int>{ 1, 8 } );
 
-    // https://stackoverflow.com/a/21917041
+    for ( auto b : s )
+        std::cout << b << nl;
+    std::cout << nl;
 
-    bimap<std::uint64_t, std::string, Bar> m;
+    std::cout << *find_one_if ( s, 1 ) << nl << nl;
 
-    std::uint64_t a = 6ull;
-    std::string b   = "hello";
+    for ( auto b : s )
+        std::cout << b << nl;
 
-    m.insert ( a, b, Bar{ 7 } );
-
-    std::cout << m.find ( 6ull ) << nl;
+    std::cout << nl;
 
     exit ( 0 );
 
@@ -776,3 +822,22 @@ int main ( ) {
 
     return EXIT_SUCCESS;
 }
+
+/*
+void sort_second ( bridge_set & bs_, void * p_ ) noexcept {
+    bs_.sort ( [] ( auto l, auto r ) { return reinterpret_cast<char *> ( l.second ) < reinterpret_cast<char *> ( r.second ); }
+);
+}
+
+auto find_first ( bridge_set & bs_, void * p_ ) noexcept {
+    return std::lower_bound ( bs_.begin ( ), bs_.end ( ), p_, [] ( auto l, auto r ) {
+        return reinterpret_cast<char *> ( l.first ) < reinterpret_cast<char *> ( r.first );
+    } );
+}
+
+auto find_second ( bridge_set & bs_, void * p_ ) noexcept {
+    return std::lower_bound ( bs_.begin ( ), bs_.end ( ), p_, [] ( auto l, auto r ) {
+        return reinterpret_cast<char *> ( l.second ) < reinterpret_cast<char *> ( r.second );
+    } );
+}
+*/
