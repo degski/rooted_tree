@@ -394,19 +394,22 @@ class alignas ( 64 ) bimap {
         return insert ( std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ), std::forward<value_type> ( v_ ) );
     }
     [[maybe_unused]] reference insert ( key_one_type k1_, key_two_type k2_, const_reference v_ ) {
-        return insert ( k1_, k2_, std::addressof ( *data.insert ( { key_addressof ( k1_ ), key_addressof ( k2_ ), v_ } ) ) );
+        return insert ( std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ),
+                        std::addressof ( *data.insert ( { key_addressof ( k1_ ), key_addressof ( k2_ ), v_ } ) ) );
     }
-    [[maybe_unused]] reference insert ( key_two_type k2_, key_one_type k1_, const_reference v_ ) { return insert ( k1_, k2_, v_ ); }
+    [[maybe_unused]] reference insert ( key_two_type k2_, key_one_type k1_, const_reference v_ ) {
+        return insert ( std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ), std::forward<value_type> ( v_ ) );
+    }
 
     template<typename... Args>
     [[maybe_unused]] reference emplace ( key_one_type k1_, key_two_type k2_, Args &&... v_ ) {
         return insert (
-            k1_, k2_,
+            std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ),
             std::addressof ( *data.emplace ( { key_addressof ( k1_ ), key_addressof ( k2_ ), std::forward<Args> ( v_ )... } ) ) );
     }
     template<typename... Args>
     [[maybe_unused]] reference emplace ( key_two_type k2_, key_one_type k1_, Args &&... v_ ) {
-        return emplace ( k1_, k2_, std::forward<Args> ( v_ )... );
+        return emplace ( std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ), std::forward<Args> ( v_ )... );
     }
 
     private:
