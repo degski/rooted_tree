@@ -424,7 +424,6 @@ class alignas ( 64 ) bimap {
         if ( k1_ ) {
             auto one_it = key_map_one.find ( { k1_, nullptr, nullptr } );
             if ( key_map_one.end ( ) != one_it ) {
-                data.erase ( data.get_iterator_from_pointer ( one_it->data ) );
                 pointer one_data = one_it->data;
                 for ( auto two_it = key_map_two.begin ( ), two_end = key_map_two.end ( ); two_it != two_end; ) {
                     if ( one_data == two_it->data )
@@ -433,6 +432,7 @@ class alignas ( 64 ) bimap {
                         ++two_it;
                 }
                 key_map_one.erase ( one_it );
+                data.erase ( data.get_iterator_from_pointer ( one_data ) );
             }
         }
     }
@@ -441,7 +441,6 @@ class alignas ( 64 ) bimap {
         if ( k2_ ) {
             auto two_it = key_map_two.find ( { k2_, nullptr, nullptr } );
             if ( key_map_two.end ( ) != two_it ) {
-                data.erase ( data.get_iterator_from_pointer ( two_it->data ) );
                 pointer two_data = two_it->data;
                 for ( auto one_it = key_map_one.begin ( ), one_end = key_map_one.end ( ); one_it != one_end; ) {
                     if ( two_data == one_it->data )
@@ -450,13 +449,13 @@ class alignas ( 64 ) bimap {
                         ++one_it;
                 }
                 key_map_two.erase ( two_it );
+                data.erase ( data.get_iterator_from_pointer ( two_data ) );
             }
         }
     }
 
     void erase_existing ( key_type_one const & k1_ ) noexcept {
-        auto one_it = key_map_one.find ( { k1_, nullptr, nullptr } );
-        data.erase ( data.get_iterator_from_pointer ( one_it->data ) );
+        auto one_it      = key_map_one.find ( { k1_, nullptr, nullptr } );
         pointer one_data = one_it->data;
         for ( auto two_it = key_map_two.begin ( ), two_end = key_map_two.end ( ); two_it != two_end; ) {
             if ( one_data == two_it->data )
@@ -465,11 +464,11 @@ class alignas ( 64 ) bimap {
                 ++two_it;
         }
         key_map_one.erase ( one_it );
+        data.erase ( data.get_iterator_from_pointer ( one_data ) );
     }
 
     void erase_existing ( key_type_two const & k2_ ) noexcept {
-        auto two_it = key_map_two.find ( { k2_, nullptr, nullptr } );
-        data.erase ( data.get_iterator_from_pointer ( two_it->data ) );
+        auto two_it      = key_map_two.find ( { k2_, nullptr, nullptr } );
         pointer two_data = two_it->data;
         for ( auto one_it = key_map_one.begin ( ), one_end = key_map_one.end ( ); one_it != one_end; ) {
             if ( two_data == one_it->data )
@@ -478,6 +477,7 @@ class alignas ( 64 ) bimap {
                 ++one_it;
         }
         key_map_two.erase ( two_it );
+        data.erase ( data.get_iterator_from_pointer ( two_data ) );
     }
 
     [[nodiscard]] const_iterator begin ( ) const noexcept { return data.begin ( ); }
