@@ -361,9 +361,9 @@ class alignas ( 64 ) bimap {
     value_type_colony data;
 
     [[maybe_unused]] reference insert ( key_type_one const & k1_, key_type_two const & k2_, pointer p_ ) {
-        auto it   = key_map_two.insert ( { k2_, nullptr, p_ } ).first;
-        it->other = const_cast<key_type_one *> ( std::addressof (
-            key_map_one.insert ( { k1_, const_cast<key_type_two *> ( std::addressof ( it->key ) ), p_ } ).first->key ) );
+        auto two_it   = key_map_two.insert ( { k2_, nullptr, p_ } ).first;
+        two_it->other = const_cast<key_type_one *> ( std::addressof (
+            key_map_one.insert ( { k1_, const_cast<key_type_two *> ( std::addressof ( two_it->key ) ), p_ } ).first->key ) );
         return *p_;
     }
 
