@@ -21,6 +21,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <gfx/timsort.hpp> // For faster sorting in plf::colony.
+
 #include "vm_backed.hpp"
 #include "rooted_tree.hpp"
 
@@ -420,33 +422,33 @@ class alignas ( 64 ) bimap {
 
     public:
     [[nodiscard]] pointer find ( key_one_type k1_ ) noexcept {
-        auto it = key_map_one.find ( { k1_, nullptr, nullptr } );
+        auto it = key_map_one.find ( { std::forward<key_one_type> ( k1_ ), nullptr, nullptr } );
         return key_map_one.end ( ) != it ? data_pointer ( it->kpndata ) : nullptr;
     }
     [[nodiscard]] pointer find ( key_two_type k2_ ) noexcept {
-        auto it = key_map_two.find ( { k2_, nullptr, nullptr } );
+        auto it = key_map_two.find ( { std::forward<key_two_type> ( k2_ ), nullptr, nullptr } );
         return key_map_two.end ( ) != it ? data_pointer ( it->kpndata ) : nullptr;
     }
     [[nodiscard]] const_pointer find ( key_one_type k1_ ) const noexcept {
-        auto it = key_map_one.find ( { k1_, nullptr, nullptr } );
+        auto it = key_map_one.find ( { std::forward<key_one_type> ( k1_ ), nullptr, nullptr } );
         return key_map_one.end ( ) != it ? data_pointer ( it->kpndata ) : nullptr;
     }
     [[nodiscard]] const_pointer find ( key_two_type k2_ ) const noexcept {
-        auto it = key_map_two.find ( { k2_, nullptr, nullptr } );
+        auto it = key_map_two.find ( { std::forward<key_two_type> ( k2_ ), nullptr, nullptr } );
         return key_map_two.end ( ) != it ? data_pointer ( it->kpndata ) : nullptr;
     }
 
     [[nodiscard]] reference find_existing ( key_one_type k1_ ) noexcept {
-        return data_reference ( key_map_one.find ( { k1_, nullptr, nullptr } )->kpndata );
+        return data_reference ( key_map_one.find ( { std::forward<key_one_type> ( k1_ ), nullptr, nullptr } )->kpndata );
     }
     [[nodiscard]] reference find_existing ( key_two_type k2_ ) noexcept {
-        return data_reference ( key_map_two.find ( { k2_, nullptr, nullptr } )->kpndata );
+        return data_reference ( key_map_two.find ( { std::forward<key_two_type> ( k2_ ), nullptr, nullptr } )->kpndata );
     }
     [[nodiscard]] const_reference find_existing ( key_one_type k1_ ) const noexcept {
-        return data_reference ( key_map_one.find ( { k1_, nullptr, nullptr } )->kpndata );
+        return data_reference ( key_map_one.find ( { std::forward<key_one_type> ( k1_ ), nullptr, nullptr } )->kpndata );
     }
     [[nodiscard]] const_reference find_existing ( key_two_type k2_ ) const noexcept {
-        return data_reference ( key_map_two.find ( { k2_, nullptr, nullptr } )->kpndata );
+        return data_reference ( key_map_two.find ( { std::forward<key_two_type> ( k2_ ), nullptr, nullptr } )->kpndata );
     }
 
     void erase ( key_one_type const * k1_ ) noexcept {
@@ -686,6 +688,8 @@ class alignas ( 64 ) bimap {
 };
 
 int main ( ) {
+
+    plf::colony<std::pair<std::uint64_t, std::uint64_t>> p;
 
     // https://stackoverflow.com/a/21917041
 
