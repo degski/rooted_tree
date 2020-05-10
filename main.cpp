@@ -398,7 +398,7 @@ class alignas ( 64 ) bimap {
                         std::addressof ( *data.insert ( { key_addressof ( k1_ ), key_addressof ( k2_ ), v_ } ) ) );
     }
     [[maybe_unused]] reference insert ( key_two_type k2_, key_one_type k1_, const_reference v_ ) {
-        return insert ( std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ), std::forward<value_type> ( v_ ) );
+        return insert ( std::forward<key_one_type> ( k1_ ), std::forward<key_two_type> ( k2_ ), v_ );
     }
 
     template<typename... Args>
