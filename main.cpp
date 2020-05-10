@@ -310,7 +310,7 @@ void emplace_back_low_workload ( Type & vec_, int n_ ) {
         vec_.emplace_back ( i );
 }
 
-template<typename key_type_one, typename key_type_two, typename type>
+template<typename key_type_one, typename key_type_two, typename type, typename allocator = std::allocator<type>>
 class alignas ( 64 ) bimap {
 
     static_assert ( not std::is_same<key_type_one, key_type_two>::value, "types must be distinct" );
@@ -336,7 +336,7 @@ class alignas ( 64 ) bimap {
 
     public:
     using value_type        = type;
-    using value_type_colony = plf::colony<value_type>;
+    using value_type_colony = plf::colony<value_type, allocator>;
 
     using pointer         = value_type *;
     using const_pointer   = value_type const *;
@@ -349,7 +349,8 @@ class alignas ( 64 ) bimap {
 
     private:
     template<typename T1, typename T2>
-    using map = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>>;
+    using map = std::set<node<T1, T2 *, value_type>, compare<T1, T2 *, value_type>,
+                         typename allocator::template rebind<node<T1, T2 *, value_type>>::other>;
 
     using map_one_type = map<key_type_one, key_type_two>;
     using map_two_type = map<key_type_two, key_type_one>;
@@ -629,7 +630,7 @@ class alignas ( 64 ) bimap {
         [[nodiscard]] key_type_one operator* ( ) const noexcept { return one_it->key; }
         [[nodiscard]] bool is_valid ( ) const noexcept { return one_it_end != one_it; }
     };
-
+    /*
     [[nodiscard]] friend bool operator== ( key_one_iterator const & l_, key_one_iterator const & r_ ) noexcept {
         return l_.two_it == r_.two_it;
     }
@@ -654,7 +655,7 @@ class alignas ( 64 ) bimap {
     [[nodiscard]] friend bool operator== ( const_key_two_iterator const & l_, const_key_two_iterator const & r_ ) noexcept {
         return l_.one_it == r_.one_it;
     }
-
+    */
     void clear ( ) noexcept {
         key_map_one.clear ( );
         key_map_two.clear ( );
