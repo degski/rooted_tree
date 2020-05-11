@@ -765,44 +765,44 @@ bridge_set_iterator<T1, T2, V> find_one_single ( bridge_set<T1, T2, V> const & b
 
 } // namespace sax
 
-template<typename T, typename V, typename U>
-struct tls_node {
-
-    T * instance;
-    std::thread::id thread;
-    alignas ( alignof ( V ) ) U data;
-
-    static constexpr std::size_t data_offset = offsetof ( tls_node, data );
-
-    [[nodiscard]] bool operator== ( tls_node const & rhs_ ) const noexcept {
-        if ( std::thread::id{ } == rhs_.thread )
-            return instance == rhs_.instance;
-        if ( nullptr == rhs_.instance )
-            return thread == rhs_.thread;
-        return instance == rhs_.instance and thread == rhs_.thread;
-    }
-
-    template<typename stream>
-    [[maybe_unused]] friend stream & operator<< ( stream & out_, tls_node const & b_ ) noexcept {
-        if constexpr ( std::is_same<typename stream::char_type, wchar_t>::value )
-            out_ << L'<' << b_.instance << L' ' << b_.thread << L'>';
-        else
-            out_ << '<' << b_.instance << ' ' << b_.thread << '>';
-        return out_;
-    }
-};
-
 template<typename T, typename V, template<typename> typename A = std::allocator>
 class instance_tls {
 
+    template<typename TT, typename TV, typename TU>
+    struct tls_node {
+
+        TT * instance;
+        std::thread::id thread;
+        alignas ( alignof ( TV ) ) TU data;
+
+        static constexpr std::size_t data_offset = offsetof ( tls_node, data );
+
+        [[nodiscard]] bool operator== ( tls_node const & rhs_ ) const noexcept {
+            if ( std::thread::id{ } == rhs_.thread )
+                return instance == rhs_.instance;
+            if ( nullptr == rhs_.instance )
+                return thread == rhs_.thread;
+            return instance == rhs_.instance and thread == rhs_.thread;
+        }
+
+        template<typename stream>
+        [[maybe_unused]] friend stream & operator<< ( stream & out_, tls_node const & b_ ) noexcept {
+            if constexpr ( std::is_same<typename stream::char_type, wchar_t>::value )
+                out_ << L'<' << b_.instance << L' ' << b_.thread << L'>';
+            else
+                out_ << '<' << b_.instance << ' ' << b_.thread << '>';
+            return out_;
+        }
+    };
+
     using un_initialized        = std::array<char, sizeof ( V )>;
-    using tls_node              = tls_node<T, V, un_initialized>;
-    using tls_node_set          = plf::list<tls_node, A<tls_node>>;
+    using tls_node_type         = tls_node<T, V, un_initialized>;
+    using tls_node_set          = plf::list<tls_node_type, A<tls_node_type>>;
     using tls_node_set_iterator = typename tls_node_set::iterator;
 
     tls_node_set data;
 
-    tls_node_set_iterator corral_front ( tls_node const & v_ ) noexcept {
+    tls_node_set_iterator corral_front ( tls_node_type const & v_ ) noexcept {
         data.sort ( [ v_ ] ( auto a, auto b ) {
             return v_.instance == a.instance ? v_.instance == b.instance ? a.thread < b.thread : true : false;
         } );
@@ -811,8 +811,7 @@ class instance_tls {
 
     public:
     [[nodiscard]] V * storage ( T * instance_ ) {
-        tls_node_set_iterator it =
-            data.unordered_find_single ( tls_node{ instance_, std::this_thread::get_id ( ), un_initialized{} } );
+        tls_node_set_iterator it = data.unordered_find_single ( { instance_, std::this_thread::get_id ( ), un_initialized{} } );
         return data.end ( ) != it
                    ? reinterpret_cast<V *> ( std::addressof ( it->data ) )
                    : new ( std::addressof (
@@ -821,8 +820,8 @@ class instance_tls {
     }
 
     void destroy_storage ( T * instance_, std::thread::id thread_ ) noexcept {
-        tls_node_set_iterator it  = corral_back ( tls_node{ std::forward<T *> ( instance_ ),
-                                                           std::forward<std::thread::id> ( thread_ ), un_initialized{} } ),
+        tls_node_set_iterator it  = corral_back ( { std::forward<T *> ( instance_ ), std::forward<std::thread::id> ( thread_ ),
+                                                   un_initialized{} } ),
                               end = data.end ( );
         while ( it != end ) {
             it->data.~V ( );
