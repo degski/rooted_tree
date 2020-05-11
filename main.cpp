@@ -778,10 +778,10 @@ class type_instance_thread_local {
         alignas ( alignof ( ValueType ) ) un_initialized storage;
     };
 
-    using set      = plf::list<node, Allocator<node>>;
-    using iterator = typename set::iterator;
+    using lazy_set = plf::list<node, Allocator<node>>;
+    using iterator = typename lazy_set::iterator;
 
-    set data;
+    lazy_set data;
 
     public:
     using type       = Type;
@@ -801,7 +801,7 @@ class type_instance_thread_local {
         iterator it = data.begin ( ), end = data.end ( );
         while ( it != end ) {
             if ( it->instance == instance_ )
-                it = data.erase ( it->data.~ValueType ( ) );
+                it = data.erase ( it->data.~value_type ( ) );
             else
                 ++it;
         }
@@ -812,7 +812,7 @@ class type_instance_thread_local {
         iterator it = data.begin ( ), end = data.end ( );
         while ( it != end ) {
             if ( it->thread == thread_ )
-                it = data.erase ( it->data.~ValueType ( ) );
+                it = data.erase ( it->data.~value_type ( ) );
             else
                 ++it;
         }
