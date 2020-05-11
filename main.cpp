@@ -689,10 +689,19 @@ class alignas ( 64 ) bimap {
     [[nodiscard]] bool empty ( ) const noexcept { return data.empty ( ); }
 };
 
+namespace sax {
 template<typename T1, typename T2>
 struct bridge {
     T1 one;
     T2 two;
+
+    [[nodiscard]] bool operator== ( bridge const & rhs_ ) const noexcept {
+        if ( T2{ } == rhs_.two )
+            return one == rhs_.one;
+        if ( T1{ } == rhs_.one )
+            return two == rhs_.two;
+        return one == rhs_.one and two == rhs_.two;
+    }
 
     template<typename stream>
     [[maybe_unused]] friend stream & operator<< ( stream & out_, bridge const & b_ ) noexcept {
@@ -710,45 +719,57 @@ template<typename T1, typename T2>
 using bridge_set_iterator = typename bridge_set<T1, T2>::iterator;
 
 template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_one ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
-    bs_.sort ( [ v ] ( auto l, auto r ) { return v == l.one ? v == r.one ? l.two < r.two : true : false; } );
-    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ v ] ( auto b ) { return v == b.one; } );
+bridge_set_iterator<T1, T2> find_one ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
+    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.one ? val_ == r.one ? l.two < r.two : true : false; } );
+    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ val_ ] ( auto b ) { return val_ == b.one; } );
 }
 template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_two ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
-    bs_.sort ( [ v ] ( auto l, auto r ) { return v == l.two ? v == r.two ? l.one < r.one : true : false; } );
-    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ v ] ( auto b ) { return v == b.two; } );
+bridge_set_iterator<T1, T2> find_two ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
+    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.two ? val_ == r.two ? l.one < r.one : true : false; } );
+    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ val_ ] ( auto b ) { return val_ == b.two; } );
 }
 
 template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_one_back ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
-    bs_.sort ( [ v ] ( auto l, auto r ) { return v == l.one ? v == r.one ? l.two < r.two : false : true; } );
+bridge_set_iterator<T1, T2> find_one_back ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
+    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.one ? val_ == r.one ? l.two < r.two : false : true; } );
     return std::find_if_not ( std::reverse_iterator{ bs_.end ( ) }, std::reverse_iterator{ bs_.begin ( ) },
-                              [ v ] ( auto b ) { return v == b.one; } )
+                              [ val_ ] ( auto b ) { return val_ == b.one; } )
         .base ( );
 }
 template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_two_back ( bridge_set<T1, T2> & bs_, T1 v ) noexcept {
-    bs_.sort ( [ v ] ( auto l, auto r ) { return v == l.two ? v == r.two ? l.one < r.one : false : true; } );
+bridge_set_iterator<T1, T2> find_two_back ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
+    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.two ? val_ == r.two ? l.one < r.one : false : true; } );
     return std::find_if_not ( std::reverse_iterator{ bs_.end ( ) }, std::reverse_iterator{ bs_.begin ( ) },
-                              [ v ] ( auto b ) { return v == b.two; } )
+                              [ val_ ] ( auto b ) { return val_ == b.two; } )
         .base ( );
 }
+
+template<typename T1, typename T2>
+bridge_set_iterator<T1, T2> find_one_single ( bridge_set<T1, T2> const & bs_, bridge<T1, T2> const & val_ ) noexcept {
+    return bs_.unordered_find_single ( val_ );
+}
+} // namespace sax
 
 int main ( ) {
-    bridge_set<int, int> s;
+    sax::bridge_set<int, int> s;
 
-    s.emplace_back ( bridge<int, int>{ 1, 3 } );
-    s.emplace_back ( bridge<int, int>{ 3, 1 } );
-    s.emplace_back ( bridge<int, int>{ 5, 8 } );
-    s.emplace_back ( bridge<int, int>{ 1, 7 } );
-    s.emplace_back ( bridge<int, int>{ 7, 8 } );
-    s.emplace_back ( bridge<int, int>{ 3, 5 } );
-    s.emplace_back ( bridge<int, int>{ 8, 2 } );
-    s.emplace_back ( bridge<int, int>{ 1, 1 } );
-    s.emplace_back ( bridge<int, int>{ 3, 2 } );
-    s.emplace_back ( bridge<int, int>{ 5, 3 } );
-    s.emplace_back ( bridge<int, int>{ 1, 8 } );
+    s.emplace_back ( sax::bridge<int, int>{ 1, 3 } );
+    s.emplace_back ( sax::bridge<int, int>{ 3, 1 } );
+    s.emplace_back ( sax::bridge<int, int>{ 5, 8 } );
+    s.emplace_back ( sax::bridge<int, int>{ 1, 7 } );
+    s.emplace_back ( sax::bridge<int, int>{ 7, 8 } );
+    s.emplace_back ( sax::bridge<int, int>{ 3, 5 } );
+    s.emplace_back ( sax::bridge<int, int>{ 8, 2 } );
+    s.emplace_back ( sax::bridge<int, int>{ 1, 1 } );
+    s.emplace_back ( sax::bridge<int, int>{ 3, 2 } );
+    s.emplace_back ( sax::bridge<int, int>{ 5, 3 } );
+    s.emplace_back ( sax::bridge<int, int>{ 1, 8 } );
+
+    sax::bridge<int, int> e = { 5, 0 };
+
+    std::cout << *sax::find_one_single ( s, e ) << nl;
+
+    exit ( 0 );
 
     for ( auto b : s )
         std::cout << b << nl;
@@ -756,7 +777,7 @@ int main ( ) {
 
     std::cout << *find_one_back ( s, 1 ) << nl << nl;
 
-    std::cout << *find_two_back ( s, 8 ) << nl << nl;
+    // std::cout << *find_two_back ( s, 8 ) << nl << nl;
 
     for ( auto b : s )
         std::cout << b << nl;
