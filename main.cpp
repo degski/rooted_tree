@@ -690,10 +690,11 @@ class alignas ( 64 ) bimap {
 };
 
 namespace sax {
-template<typename T1, typename T2>
+template<typename T1, typename T2, typename V>
 struct bridge {
     T1 one;
     T2 two;
+    V data;
 
     [[nodiscard]] bool operator== ( bridge const & rhs_ ) const noexcept {
         if ( T2{ } == rhs_.two )
@@ -713,76 +714,153 @@ struct bridge {
     }
 };
 
-template<typename T1, typename T2>
-using bridge_set = plf::list<bridge<T1, T2>>;
-template<typename T1, typename T2>
-using bridge_set_iterator = typename bridge_set<T1, T2>::iterator;
+template<typename T1, typename T2, typename V>
+using bridge_set = plf::list<bridge<T1, T2, V>>;
+template<typename T1, typename T2, typename V>
+using bridge_set_iterator = typename bridge_set<T1, T2, V>::iterator;
 
-template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_one ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
-    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.one ? val_ == r.one ? l.two < r.two : true : false; } );
-    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ val_ ] ( auto b ) { return val_ == b.one; } );
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> corral_front ( bridge_set<T1, T2, V> & bs_, bridge<T1, T2, V> const & v_ ) noexcept {
+    bs_.sort ( [ v_ ] ( auto l, auto r ) { return v_.one == l.one ? v_.one == r.one ? l.two < r.two : true : false; } );
+    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ v_ ] ( auto b ) { return v_.one == b.one; } );
 }
-template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_two ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
-    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.two ? val_ == r.two ? l.one < r.one : true : false; } );
-    return std::find_if_not ( bs_.begin ( ), bs_.end ( ), [ val_ ] ( auto b ) { return val_ == b.two; } );
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> corral_front ( bridge_set<T1, T2, V> & bs_, T1 const & v_ ) noexcept {
+    return corral_front ( bs_, bridge<T1, T2, V>{ v_, T2{} }, V{ } );
+}
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> corral_front ( bridge_set<T1, T2, V> & bs_, T2 const & v_ ) noexcept {
+    return corral_front ( bs_, bridge<T1, T2, V>{ T1{ }, v_, V{} } );
 }
 
-template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_one_back ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
-    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.one ? val_ == r.one ? l.two < r.two : false : true; } );
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> corral_back ( bridge_set<T1, T2, V> & bs_, bridge<T1, T2, V> const & v_ ) noexcept {
+    bs_.sort ( [ v_ ] ( auto l, auto r ) { return v_.one == l.one ? v_.one == r.one ? l.two < r.two : false : true; } );
     return std::find_if_not ( std::reverse_iterator{ bs_.end ( ) }, std::reverse_iterator{ bs_.begin ( ) },
-                              [ val_ ] ( auto b ) { return val_ == b.one; } )
+                              [ v_ ] ( auto b ) { return v_.one == b.one; } )
         .base ( );
 }
-template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_two_back ( bridge_set<T1, T2> & bs_, T1 val_ ) noexcept {
-    bs_.sort ( [ val_ ] ( auto l, auto r ) { return val_ == l.two ? val_ == r.two ? l.one < r.one : false : true; } );
-    return std::find_if_not ( std::reverse_iterator{ bs_.end ( ) }, std::reverse_iterator{ bs_.begin ( ) },
-                              [ val_ ] ( auto b ) { return val_ == b.two; } )
-        .base ( );
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> corral_back ( bridge_set<T1, T2, V> & bs_, T1 const & v_ ) noexcept {
+    return corral_back ( bs_, bridge<T1, T2, V>{ v_, T2{ }, V{} } );
+}
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> corral_back ( bridge_set<T1, T2, V> & bs_, T2 const & v_ ) noexcept {
+    return corral_back ( bs_, bridge<T1, T2, V>{ T1{ }, v_, V{} } );
 }
 
-template<typename T1, typename T2>
-bridge_set_iterator<T1, T2> find_one_single ( bridge_set<T1, T2> const & bs_, bridge<T1, T2> const & val_ ) noexcept {
-    return bs_.unordered_find_single ( val_ );
+template<typename T1, typename T2, typename V>
+void remove_front ( bridge_set<T1, T2, V> & bs_, bridge_set_iterator<T1, T2, V> const & it_ ) noexcept {
+    bs_.erase ( bs_.begin ( ), it_ );
 }
+template<typename T1, typename T2, typename V>
+void remove_back ( bridge_set<T1, T2, V> & bs_, bridge_set_iterator<T1, T2, V> const & it_ ) noexcept {
+    bs_.erase ( it_, bs_.end ( ) );
+}
+
+template<typename T1, typename T2, typename V>
+bridge_set_iterator<T1, T2, V> find_one_single ( bridge_set<T1, T2, V> const & bs_, bridge<T1, T2, V> const & v_ ) noexcept {
+    return bs_.unordered_find_single ( v_ );
+}
+
 } // namespace sax
 
+template<typename T, typename V, typename U>
+struct tls_node {
+
+    T * instance;
+    std::thread::id thread;
+    alignas ( alignof ( V ) ) U data;
+
+    static constexpr std::size_t data_offset = offsetof ( tls_node, data );
+
+    [[nodiscard]] bool operator== ( tls_node const & rhs_ ) const noexcept {
+        if ( std::thread::id{ } == rhs_.thread )
+            return instance == rhs_.instance;
+        if ( nullptr == rhs_.instance )
+            return thread == rhs_.thread;
+        return instance == rhs_.instance and thread == rhs_.thread;
+    }
+
+    template<typename stream>
+    [[maybe_unused]] friend stream & operator<< ( stream & out_, tls_node const & b_ ) noexcept {
+        if constexpr ( std::is_same<typename stream::char_type, wchar_t>::value )
+            out_ << L'<' << b_.instance << L' ' << b_.thread << L'>';
+        else
+            out_ << '<' << b_.instance << ' ' << b_.thread << '>';
+        return out_;
+    }
+};
+
+template<typename T, typename V, template<typename> typename A = std::allocator>
+class instance_tls {
+
+    using un_initialized        = std::array<char, sizeof ( V )>;
+    using tls_node              = tls_node<T, V, un_initialized>;
+    using tls_node_set          = plf::list<tls_node, A<tls_node>>;
+    using tls_node_set_iterator = typename tls_node_set::iterator;
+
+    tls_node_set data;
+
+    tls_node_set_iterator corral_front ( tls_node const & v_ ) noexcept {
+        data.sort ( [ v_ ] ( auto a, auto b ) {
+            return v_.instance == a.instance ? v_.instance == b.instance ? a.thread < b.thread : true : false;
+        } );
+        return std::find_if_not ( data.begin ( ), data.end ( ), [ v_ ] ( auto v ) { return v_.instance == v.instance; } );
+    }
+
+    public:
+    [[nodiscard]] V * storage ( T * instance_ ) {
+        tls_node_set_iterator it =
+            data.unordered_find_single ( tls_node{ instance_, std::this_thread::get_id ( ), un_initialized{} } );
+        return data.end ( ) != it
+                   ? reinterpret_cast<V *> ( std::addressof ( it->data ) )
+                   : new ( std::addressof (
+                         data.emplace ( std::forward<T *> ( instance_ ), std::this_thread::get_id ( ), un_initialized{ } )->data ) )
+                         V{ };
+    }
+
+    void destroy_storage ( T * instance_, std::thread::id thread_ ) noexcept {
+        tls_node_set_iterator it  = corral_back ( tls_node{ std::forward<T *> ( instance_ ),
+                                                           std::forward<std::thread::id> ( thread_ ), un_initialized{} } ),
+                              end = data.end ( );
+        while ( it != end ) {
+            it->data.~V ( );
+            it = data.erase ( it );
+        }
+    }
+    void destroy_storage ( T * instance_ ) noexcept { destroy_storage ( std::forward<T *> ( instance_ ), std::thread::id{ } ); }
+    void destroy_storage ( std::thread::id thread_ ) noexcept {
+        destroy_storage ( nullptr, std::forward<std::thread::id> ( thread_ ) );
+    }
+};
+
 int main ( ) {
-    sax::bridge_set<int, int> s;
 
-    s.emplace_back ( sax::bridge<int, int>{ 1, 3 } );
-    s.emplace_back ( sax::bridge<int, int>{ 3, 1 } );
-    s.emplace_back ( sax::bridge<int, int>{ 5, 8 } );
-    s.emplace_back ( sax::bridge<int, int>{ 1, 7 } );
-    s.emplace_back ( sax::bridge<int, int>{ 7, 8 } );
-    s.emplace_back ( sax::bridge<int, int>{ 3, 5 } );
-    s.emplace_back ( sax::bridge<int, int>{ 8, 2 } );
-    s.emplace_back ( sax::bridge<int, int>{ 1, 1 } );
-    s.emplace_back ( sax::bridge<int, int>{ 3, 2 } );
-    s.emplace_back ( sax::bridge<int, int>{ 5, 3 } );
-    s.emplace_back ( sax::bridge<int, int>{ 1, 8 } );
-
-    sax::bridge<int, int> e = { 5, 0 };
-
-    std::cout << *sax::find_one_single ( s, e ) << nl;
+    instance_tls<Bar, int> ins;
 
     exit ( 0 );
 
-    for ( auto b : s )
-        std::cout << b << nl;
-    std::cout << nl;
+    using bs = sax::bridge_set<int, int, std::size_t>;
+    using b  = sax::bridge<int, int, std::size_t>;
 
-    std::cout << *find_one_back ( s, 1 ) << nl << nl;
+    bs s;
 
-    // std::cout << *find_two_back ( s, 8 ) << nl << nl;
+    s.emplace_back ( b{ 1, 3, 100 } );
+    s.emplace_back ( b{ 3, 1, 563 } );
+    s.emplace_back ( b{ 5, 8, 787 } );
+    s.emplace_back ( b{ 1, 7, 898 } );
+    s.emplace_back ( b{ 7, 8, 786 } );
+    s.emplace_back ( b{ 3, 5, 524 } );
+    s.emplace_back ( b{ 8, 2, 968 } );
+    s.emplace_back ( b{ 1, 1, 657 } );
+    s.emplace_back ( b{ 3, 2, 970 } );
+    s.emplace_back ( b{ 5, 3, 987 } );
+    s.emplace_back ( b{ 1, 8, 857 } );
 
-    for ( auto b : s )
-        std::cout << b << nl;
+    b e = { 5, 0, 0 };
 
-    std::cout << nl;
+    std::cout << *sax::find_one_single ( s, e ) << nl;
 
     exit ( 0 );
 
