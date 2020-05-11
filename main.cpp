@@ -765,78 +765,63 @@ bridge_set_iterator<T1, T2, V> find_one_single ( bridge_set<T1, T2, V> const & b
 
 } // namespace sax
 
-template<typename T, typename V, template<typename> typename A = std::allocator>
-class instance_tls {
+template<typename Type, typename ValueType, template<typename> typename Allocator = std::allocator>
+class type_instance_thread_local {
 
-    template<typename TT, typename TV, typename TU>
-    struct tls_node {
-
-        TT * instance;
-        std::thread::id thread;
-        alignas ( alignof ( TV ) ) TU data;
-
-        static constexpr std::size_t data_offset = offsetof ( tls_node, data );
-
-        [[nodiscard]] bool operator== ( tls_node const & rhs_ ) const noexcept {
-            if ( std::thread::id{ } == rhs_.thread )
-                return instance == rhs_.instance;
-            if ( nullptr == rhs_.instance )
-                return thread == rhs_.thread;
-            return instance == rhs_.instance and thread == rhs_.thread;
-        }
-
-        template<typename stream>
-        [[maybe_unused]] friend stream & operator<< ( stream & out_, tls_node const & b_ ) noexcept {
-            if constexpr ( std::is_same<typename stream::char_type, wchar_t>::value )
-                out_ << L'<' << b_.instance << L' ' << b_.thread << L'>';
-            else
-                out_ << '<' << b_.instance << ' ' << b_.thread << '>';
-            return out_;
-        }
+    struct un_initialized {
+        std::array<char, sizeof ( ValueType )> storage;
     };
 
-    using un_initialized        = std::array<char, sizeof ( V )>;
-    using tls_node_type         = tls_node<T, V, un_initialized>;
-    using tls_node_set          = plf::list<tls_node_type, A<tls_node_type>>;
-    using tls_node_set_iterator = typename tls_node_set::iterator;
+    struct node {
+        Type * instance;
+        std::thread::id thread;
+        alignas ( alignof ( ValueType ) ) un_initialized storage;
+    };
 
-    tls_node_set data;
+    using set      = plf::list<node, Allocator<node>>;
+    using iterator = typename set::iterator;
 
-    tls_node_set_iterator corral_front ( tls_node_type const & v_ ) noexcept {
-        data.sort ( [ v_ ] ( auto a, auto b ) {
-            return v_.instance == a.instance ? v_.instance == b.instance ? a.thread < b.thread : true : false;
-        } );
-        return std::find_if_not ( data.begin ( ), data.end ( ), [ v_ ] ( auto v ) { return v_.instance == v.instance; } );
-    }
+    set data;
 
     public:
-    [[nodiscard]] V * storage ( T * instance_ ) {
-        tls_node_set_iterator it = data.unordered_find_single ( { instance_, std::this_thread::get_id ( ), un_initialized{} } );
-        return data.end ( ) != it
-                   ? reinterpret_cast<V *> ( std::addressof ( it->data ) )
-                   : new ( std::addressof (
-                         data.emplace ( std::forward<T *> ( instance_ ), std::this_thread::get_id ( ), un_initialized{ } )->data ) )
-                         V{ };
+    using type       = Type;
+    using value_type = ValueType;
+    using allocator  = Allocator<node>;
+
+    [[nodiscard]] value_type * storage ( type * instance_ ) {
+        iterator it = data.unordered_find_single ( { instance_, std::this_thread::get_id ( ), un_initialized{} } );
+        return data.end ( ) != it ? reinterpret_cast<value_type *> ( std::addressof ( it->data ) )
+                                  : new ( std::addressof ( data.emplace ( std::forward<type *> ( instance_ ),
+                                                                          std::this_thread::get_id ( ), un_initialized{ } )
+                                                               ->data ) ) value_type{ };
     }
 
-    void destroy_storage ( T * instance_, std::thread::id thread_ ) noexcept {
-        tls_node_set_iterator it  = corral_back ( { std::forward<T *> ( instance_ ), std::forward<std::thread::id> ( thread_ ),
-                                                   un_initialized{} } ),
-                              end = data.end ( );
+    // Call `destroy_storage ( type * instance_ )` in the destructor of type.
+    void destroy_storage ( type * instance_ ) noexcept {
+        iterator it = data.begin ( ), end = data.end ( );
         while ( it != end ) {
-            it->data.~V ( );
-            it = data.erase ( it );
+            if ( it->instance == instance_ )
+                it = data.erase ( it->data.~ValueType ( ) );
+            else
+                ++it;
         }
     }
-    void destroy_storage ( T * instance_ ) noexcept { destroy_storage ( std::forward<T *> ( instance_ ), std::thread::id{ } ); }
+
+    // Call `destroy_storage ( std::thread::id thread_ )` on return of thread.
     void destroy_storage ( std::thread::id thread_ ) noexcept {
-        destroy_storage ( nullptr, std::forward<std::thread::id> ( thread_ ) );
+        iterator it = data.begin ( ), end = data.end ( );
+        while ( it != end ) {
+            if ( it->thread == thread_ )
+                it = data.erase ( it->data.~ValueType ( ) );
+            else
+                ++it;
+        }
     }
 };
 
 int main ( ) {
 
-    instance_tls<Bar, int> ins;
+    type_instance_thread_local<Bar, int> ins;
 
     exit ( 0 );
 
