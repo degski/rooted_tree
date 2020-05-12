@@ -168,7 +168,7 @@ struct srw_lock final {
 
     HEDLEY_ALWAYS_INLINE void lock ( ) noexcept { AcquireSRWLockExclusive ( std::addressof ( handle ) ); }
     [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept {
-        return 0 != TryAcquireSRWLockExclusive ( std::addressof ( handle ) );
+        return TryAcquireSRWLockExclusive ( std::addressof ( handle ) );
     }
     HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { ReleaseSRWLockExclusive ( std::addressof ( handle ) ); }
 
@@ -178,7 +178,7 @@ struct srw_lock final {
         AcquireSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
     }
     [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) const noexcept {
-        return 0 != TryAcquireSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
+        return TryAcquireSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
     }
     HEDLEY_ALWAYS_INLINE void unlock ( ) const noexcept {
         ReleaseSRWLockShared ( const_cast<PSRWLOCK> ( std::addressof ( handle ) ) );
@@ -188,33 +188,35 @@ struct srw_lock final {
     SRWLOCK handle = SRWLOCK_INIT;
 };
 
-struct tas_spin_lock final {
+// On first locking, this lock spins till the lock is actually constructed.
+struct vm_vector_spin_mutex final {
 
-    tas_spin_lock ( ) noexcept                  = default;
-    tas_spin_lock ( tas_spin_lock const & )     = delete;
-    tas_spin_lock ( tas_spin_lock && ) noexcept = delete;
-    ~tas_spin_lock ( ) noexcept                 = default;
+    vm_vector_spin_mutex ( ) noexcept                         = default;
+    vm_vector_spin_mutex ( vm_vector_spin_mutex const & )     = delete;
+    vm_vector_spin_mutex ( vm_vector_spin_mutex && ) noexcept = delete;
+    ~vm_vector_spin_mutex ( ) noexcept                        = default;
 
-    tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
-    tas_spin_lock & operator= ( tas_spin_lock && ) noexcept = delete;
+    vm_vector_spin_mutex & operator= ( vm_vector_spin_mutex const & ) = delete;
+    vm_vector_spin_mutex & operator= ( vm_vector_spin_mutex && ) noexcept = delete;
 
-    // Mutex.
+    static constexpr int under_construction = 0;
+    static constexpr int constructed        = 1;
+    static constexpr int unlocked           = 3;
+    static constexpr int locked             = 4;
 
+    // unlocked or constructed -> locked
     HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
-        while ( 2 == flag.exchange ( 2, std::memory_order_acquire ) )
+        while ( not try_lock ( ) )
             cpu_pause ( );
     }
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return 1 == flag.exchange ( 2, std::memory_order_acquire ); }
-    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 1, std::memory_order_release ); }
-
-    // Construction completed sentinel.
-
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool is_under_construction ( ) noexcept {
-        return not flag.load ( std::memory_order_relaxed );
+    // unlocked or constructed -> locked
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept {
+        return 1 & flag.exchange ( locked, std::memory_order_acquire );
     }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( unlocked, std::memory_order_release ); }
 
     private:
-    std::atomic<int> flag = { 1 };
+    std::atomic<int> flag = { constructed };
 };
 
 template<typename T, typename = int>
@@ -224,7 +226,7 @@ struct has_vm_vector_atom<T, decltype ( ( void ) T::vm_vector_atom, 0 )> : std::
 
 template<typename AlignedData>
 struct vm_epilog_lock_atom : public AlignedData {
-    tas_spin_lock vm_vector_mutex;
+    vm_vector_spin_mutex vm_vector_mutex;
     template<typename... Args>
     vm_epilog_lock_atom ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, vm_vector_mutex{ } { };
 };
@@ -266,7 +268,7 @@ struct vm_concurrent_vector {
     using const_reverse_iterator = const_pointer;
 
     // using mutex = detail::vm_vector::srw_lock;
-    using mutex = detail::vm_vector::tas_spin_lock;
+    using mutex = detail::vm_vector::vm_vector_spin_mutex;
 
     using vm = detail::vm_vector::vm<pointer>;
 
@@ -315,6 +317,7 @@ struct vm_concurrent_vector {
     }
     [[nodiscard]] constexpr size_type max_size ( ) const noexcept { return capacity ( ); }
 
+    // thread-safe!
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... value_ ) {
 
@@ -352,6 +355,7 @@ struct vm_concurrent_vector {
     [[maybe_unused]] reference push_back ( const_reference value_ ) { return emplace_back ( value_type{ value_ } ); }
     [[maybe_unused]] reference push_back ( rv_reference value_ ) { return emplace_back ( std::move ( value_ ) ); }
 
+    // thread-safe!
     void pop_back ( ) noexcept {
         {
             std::lock_guard lock ( m_end_mutex );
@@ -362,9 +366,11 @@ struct vm_concurrent_vector {
             m_end->~value_type ( );
     }
 
+    // thread-safe!
     [[nodiscard]] const_pointer data ( ) const noexcept { return m_begin; }
     [[nodiscard]] pointer data ( ) noexcept { return const_cast<pointer> ( std::as_const ( *this ).data ( ) ); }
 
+    // thread-safe!
     [[nodiscard]] const_iterator begin ( ) const noexcept { return m_begin; }
     [[nodiscard]] const_iterator cbegin ( ) const noexcept { return begin ( ); }
     [[nodiscard]] iterator begin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).begin ( ) ); }
@@ -377,17 +383,21 @@ struct vm_concurrent_vector {
     [[nodiscard]] const_iterator crbegin ( ) const noexcept { return rbegin ( ); }
     [[nodiscard]] iterator rbegin ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rbegin ( ) ); }
 
+    // thread-safe!
     [[nodiscard]] const_iterator rend ( ) const noexcept { return m_begin - 1; }
     [[nodiscard]] const_iterator crend ( ) const noexcept { return rend ( ); }
     [[nodiscard]] iterator rend ( ) noexcept { return const_cast<iterator> ( std::as_const ( *this ).rend ( ) ); }
 
+    // thread-safe!
     [[nodiscard]] const_reference front ( ) const noexcept { return *begin ( ); }
     [[nodiscard]] reference front ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).front ( ) ); }
 
     [[nodiscard]] const_reference back ( ) const noexcept { return *rbegin ( ); }
     [[nodiscard]] reference back ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).back ( ) ); }
 
+    // thread-safe!
     [[nodiscard]] const_reference at ( size_type const i_ ) const {
+        std::lock_guard lock ( m_begin[ i_ ].vm_vector_mutex );
         if constexpr ( std::is_signed<size_type>::value ) {
             if ( HEDLEY_LIKELY ( 0 <= i_ and i_ < size ( ) ) )
                 return m_begin[ i_ ];
@@ -401,25 +411,18 @@ struct vm_concurrent_vector {
                 throw std::runtime_error ( "index out of bounds" );
         }
     }
+    // thread-safe!
     [[nodiscard]] reference at ( size_type const i_ ) { return const_cast<reference> ( std::as_const ( *this ).at ( i_ ) ); }
 
+    // thread-safe!
     [[nodiscard]] const_reference operator[] ( size_type const i_ ) const noexcept {
-        if constexpr ( std::is_signed<size_type>::value )
-            assert ( 0 <= i_ and i_ < size ( ) );
-        else
-            assert ( i_ < size ( ) );
+        std::lock_guard lock ( m_begin[ i_ ].vm_vector_mutex );
         return m_begin[ i_ ];
     }
+    // thread-safe!
     [[nodiscard]] reference operator[] ( size_type const i_ ) noexcept {
         return const_cast<reference> ( std::as_const ( *this ).operator[] ( i_ ) );
     }
-
-    void await_construction ( const_iterator element_ ) const noexcept {
-        while ( HEDLEY_UNLIKELY ( not element_->vm_vector_atom ) ) // await construction.
-            std::this_thread::yield ( );
-    }
-    void await_construction ( const_reference element_ ) const noexcept { await_construction ( std::addressof ( element_ ) ); }
-    void await_construction ( size_type element_ ) const noexcept { await_construction ( data ( ) + element_ ); }
 
     // private:
     static constexpr std::size_t alloc_page_size_b = static_cast<std::size_t> ( 1'024 * 65'536 ); // 64MB
