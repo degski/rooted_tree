@@ -199,24 +199,35 @@ struct vm_vector_spin_mutex final {
     vm_vector_spin_mutex & operator= ( vm_vector_spin_mutex const & ) = delete;
     vm_vector_spin_mutex & operator= ( vm_vector_spin_mutex && ) noexcept = delete;
 
-    static constexpr int under_construction = 0;
-    static constexpr int constructed        = 1;
-    static constexpr int unlocked           = 3;
-    static constexpr int locked             = 4;
+    static constexpr int uninitialized = 0;
+    static constexpr int unlocked      = 1;
+    static constexpr int locked_reader = 2;
+    static constexpr int locked_writer = 4;
 
-    // unlocked or constructed -> locked
     HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
         while ( not try_lock ( ) )
             cpu_pause ( );
     }
-    // unlocked or constructed -> locked
     [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept {
-        return 1 & flag.exchange ( locked, std::memory_order_acquire );
+        return unlocked == flag.exchange ( locked_writer, std::memory_order_acquire );
     }
     HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( unlocked, std::memory_order_release ); }
 
+    HEDLEY_ALWAYS_INLINE void lock ( ) const noexcept {
+        while ( not try_lock ( ) )
+            cpu_pause ( );
+    }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) const noexcept {
+        int state =
+            const_cast<std::atomic<int> *> ( std::addressof ( flag ) )->exchange ( locked_reader, std::memory_order_acquire );
+        return unlocked == state or locked_reader == state;
+    }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) const noexcept {
+        const_cast<std::atomic<int> *> ( std::addressof ( flag ) )->store ( unlocked, std::memory_order_release );
+    }
+
     private:
-    std::atomic<int> flag = { constructed };
+    std::atomic<int> flag = { unlocked };
 };
 
 template<typename T, typename = int>
