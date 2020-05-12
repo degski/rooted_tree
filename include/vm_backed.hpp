@@ -209,6 +209,39 @@ struct tas_spin_lock final {
     std::atomic<char> flag = { 0 };
 };
 
+// The state of this lock always evaluates to true after construction.
+// We need the sentinel to indicate location constructed, we can after
+// construction repurpose it as a free (as in beer) lock. This lock
+// is constructed in zeroed memory.
+struct lockable_sentinel_flag final {
+
+    lockable_sentinel_flag ( ) noexcept                           = default;
+    lockable_sentinel_flag ( lockable_sentinel_flag const & )     = delete;
+    lockable_sentinel_flag ( lockable_sentinel_flag && ) noexcept = delete;
+    ~lockable_sentinel_flag ( ) noexcept                          = default;
+
+    lockable_sentinel_flag & operator= ( lockable_sentinel_flag const & ) = delete;
+    lockable_sentinel_flag & operator= ( lockable_sentinel_flag && ) noexcept = delete;
+
+    // Mutex.
+
+    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
+        while ( 2 == flag.exchange ( 2, std::memory_order_acquire ) )
+            cpu_pause ( );
+    }
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return 1 == flag.exchange ( 2, std::memory_order_acquire ); }
+    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 1, std::memory_order_release ); }
+
+    // Construction completed sentinel.
+
+    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool is_under_construction ( ) noexcept {
+        return not flag.load ( std::memory_order_relaxed );
+    }
+
+    private:
+    std::atomic<char> flag = { 1 };
+};
+
 template<typename T, typename = int>
 struct has_vm_vector_atom : std::false_type {};
 template<typename T>
@@ -216,10 +249,9 @@ struct has_vm_vector_atom<T, decltype ( ( void ) T::vm_vector_atom, 0 )> : std::
 
 template<typename AlignedData>
 struct vm_epilog_lock_atom : public AlignedData {
-    tas_spin_lock vm_vector_mutex;
-    std::atomic<char> vm_vector_atom;
+    lockable_sentinel_flag vm_vector_mutex;
     template<typename... Args>
-    vm_epilog_lock_atom ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, vm_vector_atom{ 1 } { };
+    vm_epilog_lock_atom ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, vm_vector_mutex{ } { };
 };
 
 template<typename AlignedData>

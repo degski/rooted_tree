@@ -51,27 +51,27 @@ void reverse_for_each ( F f, Ts... ts ) {
     ( ( f ( ts ), dummy ) = ... = 0 );
 }
 
-#if defined( _DEBUG )
-#    define RANDOM 0
-#else
+#if defined( NDEBUG )
 #    define RANDOM 1
+#else
+#    define RANDOM 0
 #endif
 
 namespace ThreadID {
 // Creates a new ID.
-[[nodiscard]] inline int next ( ) noexcept {
-    static std::atomic<int> id = 0;
-    return id++;
+[[nodiscard]] inline int get ( bool ) noexcept {
+    static std::atomic<int> global_id = 0;
+    return global_id++;
 }
 // Returns ID of this thread.
 [[nodiscard]] inline int get ( ) noexcept {
-    static thread_local int tl_id = next ( );
-    return tl_id;
+    static thread_local int thread_local_id = get ( false );
+    return thread_local_id;
 }
 } // namespace ThreadID
 
 namespace Rng {
-// key_one_type global instance of a C++ implementation of Chris Doty-Humphrey's Small Fast Chaotic Prng.
+// Chris Doty-Humphrey's Small Fast Chaotic Prng.
 [[nodiscard]] inline sax::Rng & generator ( ) noexcept {
     if constexpr ( RANDOM ) {
         static thread_local sax::Rng generator ( sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ), sax::os_seed ( ) );
@@ -102,8 +102,6 @@ struct Bar {
 
     explicit Bar ( int const & i_ ) noexcept : value{ i_ } {}
     explicit Bar ( int && i_ ) noexcept : value{ std::move ( i_ ) } {}
-
-    // std::atomic<char> vm_vector_atom = 1; // last member
 };
 
 using ConcurrentTree = sax::concurrent_rooted_tree<Foo>;
@@ -790,6 +788,7 @@ class type_instance_thread_local {
     using allocator  = Allocator<node>;
     using mutex      = std::mutex;
 
+    // Call `type_instance_thread_local::storage ( this )` in the constructor of type.
     [[nodiscard]] value_type * storage ( type * instance_ ) {
         std::lock_guard lock ( global );
         iterator it = data.unordered_find_single ( { instance_, std::this_thread::get_id ( ), un_initialized{} } );
@@ -811,7 +810,7 @@ class type_instance_thread_local {
         }
     }
 
-    // Call `type_instance_thread_local::destroy_storage ( std::this_thread::get_id ( ) )` on return of thread.
+    // Call `type_instance_thread_local::destroy_storage ( std::this_thread::get_id ( ) )` before return of thread.
     void destroy_storage ( std::thread::id thread_ ) noexcept {
         std::lock_guard lock ( global );
         iterator it = data.begin ( ), end = data.end ( );
@@ -824,8 +823,11 @@ class type_instance_thread_local {
     }
 };
 
-void work ( ) {
-    std::this_thread::sleep_for ( std::chrono::milliseconds ( sax::uniform_int_distribution<int> ( 100, 200 ) ( rng ) ) );
+std::tuple<std::thread::id, int, int> work ( ) {
+    static std::atomic<int> ctr = 0;
+    int sleep_duration          = sax::uniform_int_distribution<int> ( 0, 20 ) ( rng );
+    std::this_thread::sleep_for ( std::chrono::milliseconds ( sleep_duration ) );
+    return { std::this_thread::get_id ( ), sleep_duration, ctr++ };
 }
 
 /*
