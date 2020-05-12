@@ -198,31 +198,6 @@ struct tas_spin_lock final {
     tas_spin_lock & operator= ( tas_spin_lock const & ) = delete;
     tas_spin_lock & operator= ( tas_spin_lock && ) noexcept = delete;
 
-    HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
-        while ( flag.exchange ( 1, std::memory_order_acquire ) )
-            cpu_pause ( );
-    }
-    [[nodiscard]] HEDLEY_ALWAYS_INLINE bool try_lock ( ) noexcept { return not flag.exchange ( 1, std::memory_order_acquire ); }
-    HEDLEY_ALWAYS_INLINE void unlock ( ) noexcept { flag.store ( 0, std::memory_order_release ); }
-
-    private:
-    std::atomic<char> flag = { 0 };
-};
-
-// The state of this lock always evaluates to true after construction.
-// We need the sentinel to indicate location constructed, we can after
-// construction repurpose it as a free (as in beer) lock. This lock
-// is constructed in zeroed memory.
-struct lockable_sentinel_flag final {
-
-    lockable_sentinel_flag ( ) noexcept                           = default;
-    lockable_sentinel_flag ( lockable_sentinel_flag const & )     = delete;
-    lockable_sentinel_flag ( lockable_sentinel_flag && ) noexcept = delete;
-    ~lockable_sentinel_flag ( ) noexcept                          = default;
-
-    lockable_sentinel_flag & operator= ( lockable_sentinel_flag const & ) = delete;
-    lockable_sentinel_flag & operator= ( lockable_sentinel_flag && ) noexcept = delete;
-
     // Mutex.
 
     HEDLEY_ALWAYS_INLINE void lock ( ) noexcept {
@@ -239,7 +214,7 @@ struct lockable_sentinel_flag final {
     }
 
     private:
-    std::atomic<char> flag = { 1 };
+    std::atomic<int> flag = { 1 };
 };
 
 template<typename T, typename = int>
@@ -249,7 +224,7 @@ struct has_vm_vector_atom<T, decltype ( ( void ) T::vm_vector_atom, 0 )> : std::
 
 template<typename AlignedData>
 struct vm_epilog_lock_atom : public AlignedData {
-    lockable_sentinel_flag vm_vector_mutex;
+    tas_spin_lock vm_vector_mutex;
     template<typename... Args>
     vm_epilog_lock_atom ( Args &&... args_ ) : AlignedData{ std::forward<Args> ( args_ )... }, vm_vector_mutex{ } { };
 };
