@@ -778,17 +778,19 @@ class type_instance_thread_local {
         alignas ( alignof ( ValueType ) ) un_initialized storage;
     };
 
-    using lazy_set = plf::list<node, Allocator<node>>;
-    using iterator = typename lazy_set::iterator;
+    std::mutex global;
+    plf::list<node, Allocator<node>> data;
 
-    lazy_set data;
+    using iterator = typename plf::list<node, Allocator<node>>::iterator;
 
     public:
     using type       = Type;
     using value_type = ValueType;
     using allocator  = Allocator<node>;
+    using mutex      = std::mutex;
 
     [[nodiscard]] value_type * storage ( type * instance_ ) {
+        std::lock_guard lock ( global );
         iterator it = data.unordered_find_single ( { instance_, std::this_thread::get_id ( ), un_initialized{} } );
         return data.end ( ) != it ? reinterpret_cast<value_type *> ( std::addressof ( it->data ) )
                                   : new ( std::addressof ( data.emplace ( std::forward<type *> ( instance_ ),
@@ -796,8 +798,9 @@ class type_instance_thread_local {
                                                                ->data ) ) value_type{ };
     }
 
-    // Call `destroy_storage ( type * instance_ )` in the destructor of type.
+    // Call `type_instance_thread_local::destroy_storage ( this )` in the destructor of type.
     void destroy_storage ( type * instance_ ) noexcept {
+        std::lock_guard lock ( global );
         iterator it = data.begin ( ), end = data.end ( );
         while ( it != end ) {
             if ( it->instance == instance_ )
@@ -807,8 +810,9 @@ class type_instance_thread_local {
         }
     }
 
-    // Call `destroy_storage ( std::thread::id thread_ )` on return of thread.
+    // Call `type_instance_thread_local::destroy_storage ( std::this_thread::get_id ( ) )` on return of thread.
     void destroy_storage ( std::thread::id thread_ ) noexcept {
+        std::lock_guard lock ( global );
         iterator it = data.begin ( ), end = data.end ( );
         while ( it != end ) {
             if ( it->thread == thread_ )
@@ -818,6 +822,25 @@ class type_instance_thread_local {
         }
     }
 };
+
+void work ( ) {
+    std::this_thread::sleep_for ( std::chrono::milliseconds ( sax::uniform_int_distribution<int> ( 100, 200 ) ( rng ) ) );
+}
+
+/*
+std::cout << "sax::vm_concurrent_vector" << nl;
+SaxConVec vec;
+
+std::uint64_t duration;
+plf::nanotimer timer;
+timer.start ( );
+
+for ( int n = 0; n < 4; ++n )
+    std::jthread{ emplace_back_low_workload<SaxConVec>, std::ref ( vec ), 1'000'000 };
+
+duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
+std::cout << duration << "ms" << sp << vec.size ( ) << nl;
+*/
 
 int main ( ) {
 
@@ -922,20 +945,19 @@ int main ( ) {
 }
 
 /*
-void sort_second ( bridge_set & bs_, void * p_ ) noexcept {
-    bs_.sort ( [] ( auto l, auto r ) { return reinterpret_cast<char *> ( l.second ) < reinterpret_cast<char *> ( r.second ); }
-);
+
+    struct id_handle {
+        std::thread::id id;
+        std::thread::native_handle_type handle;
+    };
+
+    bool thread_exited ( id_handle const & thread_ ) const {
+        LPFILETIME creationTime;
+        LPFILETIME exitTime;
+        LPFILETIME kernelTime;
+        LPFILETIME userTime;
+        GetThreadTimes ( thread_, std creationTime, exitTime, kernelTime, userTime );
+        return exitTime->dwLowDateTime;
 }
 
-auto find_first ( bridge_set & bs_, void * p_ ) noexcept {
-    return std::lower_bound ( bs_.begin ( ), bs_.end ( ), p_, [] ( auto l, auto r ) {
-        return reinterpret_cast<char *> ( l.first ) < reinterpret_cast<char *> ( r.first );
-    } );
-}
-
-auto find_second ( bridge_set & bs_, void * p_ ) noexcept {
-    return std::lower_bound ( bs_.begin ( ), bs_.end ( ), p_, [] ( auto l, auto r ) {
-        return reinterpret_cast<char *> ( l.second ) < reinterpret_cast<char *> ( r.second );
-    } );
-}
 */

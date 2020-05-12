@@ -98,6 +98,20 @@ HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 #endif
 }
 
+bool thread_exited ( std::thread::native_handle_type handle_ ) {
+#if defined( _MSC_VER )
+    FILETIME creationTime;
+    FILETIME exitTime = { 0, 0 };
+    FILETIME kernelTime;
+    FILETIME userTime;
+    GetThreadTimes ( handle_, std::addressof ( creationTime ), std::addressof ( exitTime ), std::addressof ( kernelTime ),
+                     std::addressof ( userTime ) );
+    return exitTime.dwLowDateTime;
+#else
+
+#endif
+}
+
 // Returns rounded-up multiple of n.
 [[nodiscard]] inline constexpr std::size_t round_multiple ( std::size_t n_, std::size_t multiple_ ) noexcept {
     return ( ( n_ + multiple_ - 1 ) / multiple_ ) * multiple_;
