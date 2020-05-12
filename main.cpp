@@ -310,6 +310,7 @@ using TbbVec    = tbb::concurrent_vector<sax::detail::vm_vector::vm_epilog<Bar>,
 
 template<typename Type>
 void emplace_back_low_workload ( Type & vec_, int n_ ) {
+    // static std::atomic<int> c = 0;
     for ( int i = 0; i < n_; ++i )
         vec_.emplace_back ( i );
 }
@@ -844,6 +845,8 @@ std::cout << duration << "ms" << sp << vec.size ( ) << nl;
 
 int main ( ) {
 
+    /*
+
     type_instance_thread_local<Bar, int> ins;
 
     exit ( 0 );
@@ -897,6 +900,8 @@ int main ( ) {
         std::uint64_t duration = static_cast<std::uint64_t> ( timer.get_elapsed_ms ( ) );
         std::cout << duration << "ms" << sp << vec.size ( ) << nl;
     }
+
+    */
 
     {
         std::cout << "sax::vm_vector" << nl;
