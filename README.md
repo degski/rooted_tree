@@ -1,2 +1,2 @@
 
-# rot
+# rooted tree

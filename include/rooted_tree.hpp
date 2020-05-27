@@ -75,7 +75,6 @@ struct nid {
     [[nodiscard]] nid operator++ ( ) noexcept { return nid{ ++id }; }
     [[nodiscard]] nid operator++ ( int ) noexcept { return nid{ id++ }; }
 
-#if USE_IO
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, nid const id_ ) noexcept {
         if ( nid_invalid_v == id_.id ) {
@@ -91,7 +90,6 @@ struct nid {
         }
         return out_;
     }
-#endif
 
     static constexpr int nid_invalid_v = 0;
 

@@ -83,6 +83,7 @@
 #    define HEDLEY_UNLIKELY( expr ) ( !!( expr ) )
 #    define HEDLEY_PREDICT( expr, res, perc ) ( !!( expr ) )
 #    define HEDLEY_NEVER_INLINE
+#    define HEDLEY_ALWAYS_INLINE
 #    define HEDLEY_PURE
 #endif
 
@@ -93,8 +94,10 @@ namespace detail { // sax::detail
 HEDLEY_ALWAYS_INLINE void cpu_pause ( ) noexcept {
 #if ( defined( __clang__ ) or defined( __GNUC__ ) )
     asm( "pause" );
-#else
+#elif defined( _MSC_VER )
     _mm_pause ( );
+#else
+#    error the babbage engine is no longer supported
 #endif
 }
 
@@ -112,9 +115,19 @@ bool thread_exited ( std::thread::native_handle_type handle_ ) {
 #endif
 }
 
-// Returns rounded-up multiple of n.
-[[nodiscard]] inline constexpr std::size_t round_multiple ( std::size_t n_, std::size_t multiple_ ) noexcept {
-    return ( ( n_ + multiple_ - 1 ) / multiple_ ) * multiple_;
+[[nodiscard]] HEDLEY_ALWAYS_INLINE constexpr std::size_t round_multiple ( std::size_t n_, std::size_t multiple_ ) noexcept {
+    n_ += multiple_ - 1;
+    n_ /= multiple_;
+    n_ *= multiple_;
+    return n_;
+}
+
+[[nodiscard]] HEDLEY_ALWAYS_INLINE void * round_multiple ( void * pointer_, std::size_t multiple_ ) noexcept {
+    std::size_t p;
+    std::memcpy ( &p, &pointer_, sizeof ( std::size_t ) );
+    p = round_multiple ( p, multiple_ );
+    std::memcpy ( &pointer_, &p, sizeof ( std::size_t ) );
+    return pointer_;
 }
 
 namespace vm_vector { // sax::detail::vm_vector
@@ -188,7 +201,7 @@ struct srw_lock final {
     SRWLOCK handle = SRWLOCK_INIT;
 };
 
-// On first locking, this lock spins till the lock is actually constructed.
+// This mutex handles the in-flight problem (at zero cost).
 struct vm_vector_spin_mutex final {
 
     vm_vector_spin_mutex ( ) noexcept                         = default;
